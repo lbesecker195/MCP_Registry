@@ -2,13 +2,16 @@ defmodule McpRegistry.Registry.RemoteContent do
   @moduledoc """
   Live enrichment for a server show page.
 
-  Pulls the first 200 words of a GitHub README when `repository_url` points at
-  github.com, and the document title plus meta description from `website_url`.
-  Failures are soft: the page still renders with whatever the listing already
-  stored.
+  Pulls a GitHub README excerpt (at least 200 words, cut at the end of the
+  paragraph that crosses that mark) when `repository_url` points at github.com,
+  converts that Markdown to HTML, and reads the document title plus meta
+  description from `website_url`. Failures are soft: the page still renders
+  with whatever the listing already stored.
+
+  Requires `{:earmark, "~> 1.4"}` in `mix.exs` for Markdown → HTML.
   """
 
-  @word_limit 200
+  @min_words 200
   @receive_timeout 5_000
   @connect_timeout 3_000
   @max_body 512_000
@@ -16,7 +19,7 @@ defmodule McpRegistry.Registry.RemoteContent do
   @type t :: %{
           website_title: String.t() | nil,
           website_description: String.t() | nil,
-          readme_excerpt: String.t() | nil,
+          readme_html: String.t() | nil,
           readme_url: String.t() | nil
         }
 
@@ -25,7 +28,7 @@ defmodule McpRegistry.Registry.RemoteContent do
     %{
       website_title: nil,
       website_description: nil,
-      readme_excerpt: nil,
+      readme_html: nil,
       readme_url: nil
     }
     |> maybe_put_website(site)
@@ -47,9 +50,9 @@ defmodule McpRegistry.Registry.RemoteContent do
   defp maybe_put_website(acc, _), do: acc
 
   defp maybe_put_readme(acc, url) when is_binary(url) and url != "" do
-    case fetch_readme_excerpt(url) do
-      {:ok, excerpt, raw_url} ->
-        %{acc | readme_excerpt: excerpt, readme_url: raw_url}
+    case fetch_readme_html(url) do
+      {:ok, html, raw_url} ->
+        %{acc | readme_html: html, readme_url: raw_url}
 
       :error ->
         acc
@@ -77,7 +80,7 @@ defmodule McpRegistry.Registry.RemoteContent do
     _, _ -> :error
   end
 
-  defp fetch_readme_excerpt(repo_url) do
+  defp fetch_readme_html(repo_url) do
     case github_readme_candidates(repo_url) do
       [] ->
         :error
@@ -86,13 +89,16 @@ defmodule McpRegistry.Registry.RemoteContent do
         Enum.find_value(candidates, :error, fn raw_url ->
           case get(raw_url, decode_body: false) do
             {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) ->
-              excerpt =
+              {markdown, truncated?} =
                 body
                 |> truncate_body()
                 |> strip_frontmatter()
-                |> first_words(@word_limit)
+                |> excerpt_through_paragraph(@min_words)
 
-              if excerpt == "", do: nil, else: {:ok, excerpt, raw_url}
+              case markdown_to_html(markdown, truncated?) do
+                html when is_binary(html) and html != "" -> {:ok, html, raw_url}
+                _ -> nil
+              end
 
             _ ->
               nil
@@ -158,24 +164,75 @@ defmodule McpRegistry.Registry.RemoteContent do
     end
   end
 
-  defp first_words(text, limit) do
-    words = String.split(text, ~r/\s+/u, trim: true)
+  # Keep whole paragraphs until the running word count is at least `min_words`,
+  # so the cut lands at a paragraph boundary (200+ words), not mid-sentence.
+  defp excerpt_through_paragraph(text, min_words) do
+    paragraphs =
+      text
+      |> String.split(~r/\n\s*\n/u, trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
 
-    words
-    |> Enum.take(limit)
-    |> Enum.join(" ")
-    |> then(fn excerpt ->
-      if length(words) > limit, do: excerpt <> "…", else: excerpt
-    end)
+    {kept, _count, stopped_early?} =
+      Enum.reduce_while(paragraphs, {[], 0, false}, fn para, {acc, count, _} ->
+        words = para |> String.split(~r/\s+/u, trim: true) |> length()
+        next = {acc ++ [para], count + words, true}
+
+        if count + words >= min_words,
+          do: {:halt, next},
+          else: {:cont, put_elem(next, 2, false)}
+      end)
+
+    truncated? = stopped_early? and length(kept) < length(paragraphs)
+    {Enum.join(kept, "\n\n"), truncated?}
+  end
+
+  defp markdown_to_html(markdown, truncated?) do
+    html =
+      cond do
+        Code.ensure_loaded?(Earmark) ->
+          case Earmark.as_html(markdown, escape: true) do
+            {:ok, html, _warnings} -> html
+            {:error, html, _warnings} when is_binary(html) -> html
+            _ -> nil
+          end
+
+        Code.ensure_loaded?(MDEx) ->
+          MDEx.to_html!(markdown,
+            extension: [table: true, autolink: true, strikethrough: true, tasklist: true],
+            render: [unsafe: false],
+            parse: [smart: true]
+          )
+
+        true ->
+          nil
+      end
+
+    cond do
+      is_nil(html) or html == "" ->
+        nil
+
+      truncated? ->
+        html <> ~s(<p class="opacity-60">…</p>)
+
+      true ->
+        html
+    end
   end
 
   defp extract_title(html) do
     cond do
-      og = meta_content(html, "property", "og:title") -> clean_text(og)
-      tw = meta_content(html, "name", "twitter:title") -> clean_text(tw)
+      og = meta_content(html, "property", "og:title") ->
+        clean_text(og)
+
+      tw = meta_content(html, "name", "twitter:title") ->
+        clean_text(tw)
+
       match = Regex.run(~r/<title[^>]*>(.*?)<\/title>/is, html, capture: :all_but_first) ->
         match |> hd() |> clean_text()
-      true -> nil
+
+      true ->
+        nil
     end
   end
 

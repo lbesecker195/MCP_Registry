@@ -20,7 +20,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
         manifest: Jason.encode!(Manifest.to_map(server), pretty: true),
         website_title: nil,
         website_description: nil,
-        readme_excerpt: nil,
+        readme_html: nil,
         readme_url: nil,
         remote_loading: true
       )
@@ -50,7 +50,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
        page_title: title,
        website_title: remote.website_title,
        website_description: remote.website_description,
-       readme_excerpt: remote.readme_excerpt,
+       readme_html: remote.readme_html,
        readme_url: remote.readme_url,
        remote_loading: false
      )}
@@ -110,19 +110,6 @@ defmodule McpRegistryWeb.ServerLive.Show do
 
       <section class="grid gap-8 md:grid-cols-[3fr_2fr]">
         <div class="space-y-6">
-          <div :if={@remote_loading} class="text-sm text-base-content/60">
-            Loading README and website details…
-          </div>
-
-          <div :if={@readme_excerpt} class="space-y-2">
-            <h3 class="font-semibold">From the README</h3>
-            <p class="text-sm leading-relaxed whitespace-pre-wrap">{@readme_excerpt}</p>
-            <p :if={@server.repository_url} class="text-xs text-base-content/60">
-              First 200 words of the GitHub README.
-              <a href={@server.repository_url} class="link" rel="nofollow ugc noopener">View repository</a>
-            </p>
-          </div>
-
           <p :if={@snippets == []} class="text-sm text-base-content/70">
             There's no ready-made install snippet for this package type yet. See the repository or
             website for setup instructions.
@@ -146,6 +133,25 @@ defmodule McpRegistryWeb.ServerLive.Show do
               <pre class="text-xs overflow-x-auto"><code>{@manifest}</code></pre>
             </div>
           </details>
+
+          <div :if={@remote_loading} class="text-sm text-base-content/60">
+            Loading README…
+          </div>
+
+          <div :if={@readme_html} class="space-y-2">
+            <h3 class="font-semibold">From the README</h3>
+            <div class={[
+              "text-sm leading-relaxed space-y-3",
+              "[&_a]:link [&_pre]:bg-base-300 [&_pre]:rounded-box [&_pre]:p-3 [&_pre]:overflow-x-auto",
+              "[&_code]:font-mono [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+            ]}>
+              {raw(@readme_html)}
+            </div>
+            <p :if={@server.repository_url} class="text-xs text-base-content/60">
+              Opening of the GitHub README (through the paragraph that crosses 200 words).
+              <a href={@server.repository_url} class="link" rel="nofollow ugc noopener">View repository</a>
+            </p>
+          </div>
         </div>
 
         <aside>
