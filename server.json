@@ -1,0 +1,19 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.lbesecker195/mcp-registry-search-find-mcp-servers-discover-install-mcp-tools-directory-catalog-marketplace",
+  "title": "MCP Registry Search: Find, Discover & Install MCP Servers & Tools | Directory, Catalog, Marketplace",
+  "description": "MCP registry & directory: search, find & install 31k+ MCP servers & tools. Catalog and marketplace.",
+  "version": "1.0.0",
+  "websiteUrl": "https://ai.mcpharbor.dev",
+  "repository": {
+    "url": "https://github.com/lbesecker195/HoneyTrap",
+    "source": "github",
+    "subfolder": "mcp_registery"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://ai.mcpharbor.dev/mcp"
+    }
+  ]
+}
