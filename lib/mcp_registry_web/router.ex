@@ -38,6 +38,7 @@ defmodule McpRegistryWeb.Router do
     get "/servers", ServerController, :index
     post "/servers", ServerController, :create
     post "/review", ServerController, :review
+    post "/articles/*name", ServerController, :save_article
     get "/servers/*name", ServerController, :show
   end
 

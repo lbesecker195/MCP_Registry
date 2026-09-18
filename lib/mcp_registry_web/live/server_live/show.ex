@@ -8,9 +8,18 @@ defmodule McpRegistryWeb.ServerLive.Show do
   def mount(%{"name" => segments}, _session, socket) do
     server = Registry.get_server!(Enum.join(segments, "/"))
 
+    article_html =
+      if server.article_content do
+        markdown_to_html(server.article_content)
+      else
+        nil
+      end
+
     socket =
       assign(socket,
-        page_title: server.title,
+        page_title: meta_title(server),
+        title_suffix: "",
+        meta_description: meta_description(server),
         noindex: server.status != "active",
         official_url:
           if(server.synced_at, do: McpRegistry.OfficialRegistry.server_url(server.name)),
@@ -18,6 +27,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
         short_name: Server.short_name(server),
         snippets: Install.snippets(server),
         manifest: Jason.encode!(Manifest.to_map(server), pretty: true),
+        article_html: article_html,
         website_title: nil,
         website_description: nil,
         readme_html: nil,
@@ -43,11 +53,11 @@ defmodule McpRegistryWeb.ServerLive.Show do
 
   @impl true
   def handle_info({:remote_content, remote}, socket) do
-    title = remote.website_title || socket.assigns.server.title
-
+    # page_title/meta_description keep their fixed SEO format regardless of
+    # what the server's own website calls itself; website_title still drives
+    # the on-page heading via display_title/1 below.
     {:noreply,
      assign(socket,
-       page_title: title,
        website_title: remote.website_title,
        website_description: remote.website_description,
        readme_html: remote.readme_html,
@@ -134,6 +144,25 @@ defmodule McpRegistryWeb.ServerLive.Show do
             </div>
           </details>
 
+          <div
+            :if={@article_html}
+            class="prose prose-sm max-w-none rounded-box bg-base-100 border border-base-300 p-6 my-6"
+          >
+            <h3 class="font-semibold mb-4">Technical Article</h3>
+            <div class={[
+              "leading-relaxed prose prose-sm",
+              "[&_a]:link [&_pre]:bg-base-300 [&_pre]:rounded-box [&_pre]:p-3 [&_pre]:overflow-x-auto",
+              "[&_code]:font-mono [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5",
+              "[&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-6 [&_h2]:mb-3",
+              "[&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2"
+            ]}>
+              {raw(@article_html)}
+            </div>
+            <p :if={@server.article_generated_at} class="text-xs text-base-content/60 mt-4">
+              Article generated on {Calendar.strftime(@server.article_generated_at, "%B %d, %Y")}
+            </p>
+          </div>
+
           <div :if={@remote_loading} class="text-sm text-base-content/60">
             Loading README…
           </div>
@@ -193,6 +222,17 @@ defmodule McpRegistryWeb.ServerLive.Show do
     """
   end
 
+  defp meta_title(server), do: "#{server.title} MCP"
+
+  defp meta_description(server) do
+    name = server.title
+    company = Server.company_name(server)
+
+    "#{name} MCP server integration.  #{company} #{name} MCP server.  " <>
+      "How to integrate with Claude #{name} using MCP and Cursor #{name} using MCP " <>
+      "so I can use them in Claude Code and Grok Bot."
+  end
+
   defp display_title(%{website_title: title}) when is_binary(title) and title != "", do: title
   defp display_title(%{server: server}), do: server.title
 
@@ -214,4 +254,13 @@ defmodule McpRegistryWeb.ServerLive.Show do
 
     ", synced #{ago}"
   end
+
+  defp markdown_to_html(markdown) when is_binary(markdown) do
+    case Earmark.as_html(markdown, escape: true) do
+      {:ok, html, _warnings} -> html
+      {:error, _html, _warnings} -> nil
+    end
+  end
+
+  defp markdown_to_html(_), do: nil
 end
