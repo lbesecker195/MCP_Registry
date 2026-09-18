@@ -19,7 +19,14 @@
 
 ARG ELIXIR_VERSION=1.20.4
 ARG OTP_VERSION=29.0.6
-ARG DEBIAN_VERSION=trixie-20260824-slim
+# Debian trixie ships OpenSSL >= 3.4, so a release built against it fails to
+# load its crypto NIF ("version `OPENSSL_3.4.0' not found") on any host whose
+# system OpenSSL is older -- e.g. Ubuntu 24.04 LTS, which ships 3.0.13.
+# bookworm's OpenSSL stays in the 3.0.x line for its whole lifecycle, and
+# OpenSSL's 3.x series is both forward- and backward-ABI-compatible, so a
+# bookworm-built release runs on both that and newer system OpenSSLs (e.g.
+# Ubuntu 26.04's 3.5.x). Keep builder and runner on the same Debian version.
+ARG DEBIAN_VERSION=bookworm-20260824-slim
 
 ARG BUILDER_IMAGE="docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="docker.io/debian:${DEBIAN_VERSION}"
