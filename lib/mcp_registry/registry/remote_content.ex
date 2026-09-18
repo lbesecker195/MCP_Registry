@@ -8,8 +8,13 @@ defmodule McpRegistry.Registry.RemoteContent do
   description from `website_url`. Failures are soft: the page still renders
   with whatever the listing already stored.
 
-  Requires `{:earmark, "~> 1.4"}` in `mix.exs` for Markdown → HTML.
+  Requires `{:earmark, "~> 1.4"}` in `mix.exs` for Markdown → HTML. Earmark is
+  always the dependency actually present, so the MDEx branch below is a
+  fallback for an optional dependency this project doesn't currently declare;
+  suppress the resulting compile-time warning rather than add an unused dep.
   """
+
+  @compile {:no_warn_undefined, {MDEx, :to_html!, 2}}
 
   @min_words 200
   @receive_timeout 5_000

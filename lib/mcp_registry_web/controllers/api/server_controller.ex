@@ -74,8 +74,10 @@ defmodule McpRegistryWeb.API.ServerController do
   def review(_conn, _params), do: {:error, :bad_review}
 
   @doc "Save an article for a server. Requires the publish token."
-  def save_article(conn, %{"name" => segments, "content" => content}) when is_list(segments) and is_binary(content) do
+  def save_article(conn, %{"name" => segments, "content" => content})
+      when is_list(segments) and is_binary(content) do
     name = Enum.join(segments, "/")
+
     with :ok <- Submissions.require_admin(conn),
          {:ok, server} <- ContentGenerator.save_article(name, content) do
       render(conn, :show, server: server)

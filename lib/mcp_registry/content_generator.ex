@@ -28,7 +28,9 @@ defmodule McpRegistry.ContentGenerator do
     {success, failed} =
       Enum.reduce(articles_list, {0, 0}, fn {server_or_name, content}, {ok, err} ->
         case save_article(server_or_name, content) do
-          {:ok, _} -> {ok + 1, err}
+          {:ok, _} ->
+            {ok + 1, err}
+
           {:error, reason} ->
             Logger.warning("Failed to save article: #{reason}")
             {ok, err + 1}
