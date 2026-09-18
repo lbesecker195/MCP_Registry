@@ -179,9 +179,17 @@ guide forward for the next project an agent works on.
 
 ## Deploying to ai.mcpharbor.dev
 
-The site runs on the shared Ubuntu server at 155.138.220.76, next to the other
-sites that server hosts. It uses what that server already has: nginx in front,
-certbot for HTTPS, and the system PostgreSQL. No Docker runs on the server.
+The site runs on the shared Ubuntu 24.04 server at 95.111.235.216 (SSH alias
+`actuallyHostThemAll`), next to the other sites that server hosts (currently
+also `email-provider`). It uses what that server already has: nginx in front,
+certbot for HTTPS, and the system PostgreSQL (16). No Docker runs on the
+server -- the project Dockerfile only builds the release locally.
+
+Moved here 2026-09-18 from an earlier shared server (155.138.220.76,
+Ubuntu 26.04); that box is left running, untouched, as a fallback. The
+release builds against Debian bookworm rather than a newer Debian, precisely
+so its `crypto` NIF's required OpenSSL ABI version stays satisfied by
+whatever LTS Ubuntu ships next, not just this server's OpenSSL 3.0.13.
 
 - **Release:** a linux/amd64 Phoenix release built locally with the project
   Dockerfile, unpacked to `/opt/mcp-registry/releases/<timestamp>` with a
@@ -224,13 +232,13 @@ CI never sees, for example adding `SSA_ACCOUNT_ID`), or when CI is unavailable.
 Run it from this folder with Docker Desktop open:
 
 ```bash
-deploy/deploy.sh root@155.138.220.76
+deploy/deploy.sh root@95.111.235.216
 ```
 
 Day-to-day commands on the server:
 
 ```bash
-ssh root@155.138.220.76 "systemctl status mcp-registry; journalctl -u mcp-registry -n 50 --no-pager"
+ssh actuallyHostThemAll "systemctl status mcp-registry; journalctl -u mcp-registry -n 50 --no-pager"
 ```
 
 
