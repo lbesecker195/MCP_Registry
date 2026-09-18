@@ -119,9 +119,14 @@ Rejecting deletes the pending listing and frees its name.
 
 ## Running it
 
+The server -- `mix phx.server`, not `mix test` -- refuses to boot without
+`MCP_REGISTRY_LICENSE_KEY` set to a key issued by the project owner, in dev
+as well as prod. Ask for one rather than generating your own; it's checked
+against a hash in `config/runtime.exs`, not derivable from the source.
+
 ```bash
-mix setup            # deps, database, migrations, seeds, assets
-mix phx.server       # http://localhost:4000
+mix setup                                      # deps, database, migrations, seeds, assets
+MCP_REGISTRY_LICENSE_KEY=... mix phx.server     # http://localhost:4000
 ```
 
 The dev config connects to Postgres as the `logan` role with no password; edit
@@ -250,7 +255,7 @@ ssh actuallyHostThemAll "systemctl status mcp-registry; journalctl -u mcp-regist
 | `SSA_PROJECT`            | Project label in the dashboard, default `mcp-registry`    |
 | `REGISTRY_PUBLISH_TOKEN` | Bearer token for `POST /api/v0/servers`                   |
 | `OFFICIAL_REGISTRY_SYNC` | Set to `false` to stop syncing the official registry in production |
-| `MCP_REGISTRY_LICENSE_KEY` | Required in prod -- the release refuses to boot without a key matching the hash in `config/runtime.exs`. Ask the project owner for one; the code is Apache 2.0 licensed, so this only blocks starting with no key or the wrong one, not a determined fork. |
+| `MCP_REGISTRY_LICENSE_KEY` | Required in dev and prod (not test) -- the server refuses to boot without a key matching the hash in `config/runtime.exs`. Ask the project owner for one; the code is Apache 2.0 licensed, so this only blocks starting with no key or the wrong one, not a determined fork. |
 | `DATABASE_URL`, `SECRET_KEY_BASE`, `PHX_HOST` | Standard Phoenix production settings |
 
 ## Layout
