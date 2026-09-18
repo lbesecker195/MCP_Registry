@@ -72,8 +72,8 @@ jobs:
       group: mcp-registry-production
       cancel-in-progress: false
     env:
-      DEPLOY_TARGET: root@155.138.220.76
-      DEPLOY_HOST_KEY: "155.138.220.76 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA7Ruw29SGsoYE3qErWHngUQyoANZsn/vTZeEbCPZHgp"
+      DEPLOY_TARGET: root@95.111.235.216
+      DEPLOY_HOST_KEY: "95.111.235.216 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG1NmatJfwoQH6gaftzx0PETNBlyEyjIzfmZy5BAnK4e"
     steps:
       - uses: actions/checkout@v5
 
