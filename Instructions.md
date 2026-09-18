@@ -196,8 +196,8 @@ certbot for HTTPS, and the system PostgreSQL. No Docker runs on the server.
 
 ### Continuous deployment
 
-`.github/workflows/mcp-registry.yml` in the HoneyTrap repository runs on every
-push and pull request that touches `mcp_registery/`:
+`.github/workflows/mcp-registry.yml` in this repository runs on every push
+and pull request:
 
 1. **test** runs `mix compile --warnings-as-errors`, `mix format --check-formatted`
    and `mix test` against Postgres 18.

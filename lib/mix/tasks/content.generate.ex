@@ -4,7 +4,10 @@ defmodule Mix.Tasks.Content.Generate do
 
   alias McpRegistry.ContentGenerator
   alias McpRegistry.Registry
-  alias McpRegistry.Repo
+
+  # ContentGenerator.generate_articles_batch/2 isn't implemented yet -- this
+  # task is a stub until the actual article-generation call lands.
+  @compile {:no_warn_undefined, {ContentGenerator, :generate_articles_batch, 2}}
 
   @moduledoc """
   Generate technical articles for MCP servers.
@@ -24,10 +27,11 @@ defmodule Mix.Tasks.Content.Generate do
   def run(args) do
     Mix.Task.run("app.start")
 
-    {opts, _} = OptionParser.parse!(args,
-      strict: [limit: :integer, long: :boolean, short: :boolean, resume: :string],
-      aliases: [l: :limit]
-    )
+    {opts, _} =
+      OptionParser.parse!(args,
+        strict: [limit: :integer, long: :boolean, short: :boolean, resume: :string],
+        aliases: [l: :limit]
+      )
 
     limit = Keyword.get(opts, :limit, 5)
     word_count = if Keyword.get(opts, :short, false), do: :short, else: :long
@@ -49,7 +53,9 @@ defmodule Mix.Tasks.Content.Generate do
     query = Registry.list_servers(status: "active", limit: limit)
 
     case resume_from do
-      nil -> query
+      nil ->
+        query
+
       resume_name ->
         # Skip until we find the resume point
         Enum.drop_while(query, fn s -> s.name != resume_name end)

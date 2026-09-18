@@ -24,6 +24,6 @@ six hours.
 - Endpoint (Streamable HTTP, no auth): https://ai.mcpharbor.dev/mcp
 - Tools: `search_servers`, `get_server`, `submit_server`
 - Website: https://ai.mcpharbor.dev
-- Source: https://github.com/lbesecker195/HoneyTrap/tree/main/mcp_registery
+- Source: https://github.com/lbesecker195/MCP_Registry
 
 Thanks for taking a look.
