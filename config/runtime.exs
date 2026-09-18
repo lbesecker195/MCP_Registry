@@ -41,6 +41,28 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
+  # Requires a key issued by the project owner before the release will boot.
+  # Note this is not real protection: the source is Apache 2.0 licensed, so
+  # anyone with the code has the legal right to delete this check in their
+  # own copy. It only stops the release from starting with no key or the
+  # wrong one -- ask the project owner for a key rather than guessing.
+  license_key =
+    System.get_env("MCP_REGISTRY_LICENSE_KEY") ||
+      raise """
+      environment variable MCP_REGISTRY_LICENSE_KEY is missing.
+      Ask the project owner for a key.
+      """
+
+  license_key_hash = :crypto.hash(:sha256, license_key) |> Base.encode16(case: :lower)
+  expected_license_key_hash = "16d8ca73c1074961a9f0865ecd928b970785b0d176c9e71db9dca029c904c557"
+
+  unless Plug.Crypto.secure_compare(license_key_hash, expected_license_key_hash) do
+    raise """
+    MCP_REGISTRY_LICENSE_KEY does not match the expected key.
+    Ask the project owner for a key.
+    """
+  end
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
