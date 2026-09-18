@@ -37,6 +37,8 @@ defmodule McpRegistry.Registry.Server do
     field :origin, :string, default: "local"
     field :source_updated_at, :utc_datetime_usec
     field :synced_at, :utc_datetime_usec
+    field :article_content, :string
+    field :article_generated_at, :utc_datetime_usec
 
     timestamps(type: :utc_datetime)
   end
@@ -49,6 +51,26 @@ defmodule McpRegistry.Registry.Server do
   @doc "Everything after the slash: `io.github.acme/weather` becomes `weather`."
   def short_name(%__MODULE__{name: name}), do: short_name(name)
   def short_name(name) when is_binary(name), do: name |> String.split("/") |> List.last()
+
+  @doc """
+  Best-effort publisher name for SEO copy, derived from the reverse-DNS
+  namespace: `io.github.acme/weather` becomes `Acme`, `com.brave/brave-search`
+  becomes `Brave`. There is no dedicated company field, so this is a guess,
+  not an authoritative vendor name.
+  """
+  def company_name(%__MODULE__{name: name}), do: company_name(name)
+
+  def company_name(name) when is_binary(name) do
+    namespace = name |> String.split("/") |> List.first() || ""
+    segment = namespace |> String.split(".") |> List.last() || namespace
+
+    case segment |> String.split(~r/[-_]/, trim: true) |> Enum.map(&String.capitalize/1) do
+      [] -> "MCP"
+      words -> Enum.join(words, " ")
+    end
+  end
+
+  def company_name(_), do: "MCP"
 
   def remote?(%__MODULE__{transport: transport}), do: transport in ["streamable-http", "sse"]
 
@@ -75,7 +97,9 @@ defmodule McpRegistry.Registry.Server do
       :package_identifier,
       :repository_url,
       :website_url,
-      :license | @list_fields
+      :license,
+      :article_content,
+      :article_generated_at | @list_fields
     ])
     |> update_change(:name, &normalize_name/1)
     |> validate_required([:name, :title, :description, :version, :transport, :status])

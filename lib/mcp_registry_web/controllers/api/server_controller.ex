@@ -3,6 +3,7 @@ defmodule McpRegistryWeb.API.ServerController do
   import McpRegistryWeb.Routes
 
   alias McpRegistry.Registry
+  alias McpRegistry.ContentGenerator
   alias McpRegistryWeb.Submissions
 
   action_fallback McpRegistryWeb.API.FallbackController
@@ -71,6 +72,17 @@ defmodule McpRegistryWeb.API.ServerController do
   end
 
   def review(_conn, _params), do: {:error, :bad_review}
+
+  @doc "Save an article for a server. Requires the publish token."
+  def save_article(conn, %{"name" => segments, "content" => content}) when is_list(segments) and is_binary(content) do
+    name = Enum.join(segments, "/")
+    with :ok <- Submissions.require_admin(conn),
+         {:ok, server} <- ContentGenerator.save_article(name, content) do
+      render(conn, :show, server: server)
+    end
+  end
+
+  def save_article(_conn, _params), do: {:error, :bad_request}
 
   # Only maintainers may list anything other than active servers.
   defp listing_status(_conn, status) when status in [nil, "", "active"], do: {:ok, "active"}
