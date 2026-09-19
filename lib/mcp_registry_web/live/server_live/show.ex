@@ -26,6 +26,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
         server: server,
         short_name: Server.short_name(server),
         snippets: Install.snippets(server),
+        package_manager_options: Install.package_manager_options(server),
         manifest: Jason.encode!(Manifest.to_map(server), pretty: true),
         article_html: article_html,
         website_title: nil,
@@ -53,9 +54,8 @@ defmodule McpRegistryWeb.ServerLive.Show do
 
   @impl true
   def handle_info({:remote_content, remote}, socket) do
-    # page_title/meta_description keep their fixed SEO format regardless of
-    # what the server's own website calls itself; website_title still drives
-    # the on-page heading via display_title/1 below.
+    # page_title/meta_description/the <h1> all keep their fixed SEO format
+    # regardless of what the server's own website calls itself.
     {:noreply,
      assign(socket,
        website_title: remote.website_title,
@@ -88,7 +88,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
       </div>
 
       <.header>
-        {display_title(assigns)}
+        {meta_title(@server)}
         <:subtitle>
           <span class="font-mono">{@server.name}</span> &middot; v{@server.version}
         </:subtitle>
@@ -176,14 +176,60 @@ defmodule McpRegistryWeb.ServerLive.Show do
             ]}>
               {raw(@readme_html)}
             </div>
-            <p :if={@server.repository_url} class="text-xs text-base-content/60">
-              Opening of the GitHub README (through the paragraph that crosses 200 words).
-              <a href={@server.repository_url} class="link" rel="nofollow ugc noopener">View repository</a>
-            </p>
           </div>
         </div>
 
         <aside>
+          <div
+            :if={@package_manager_options != []}
+            class="mb-6"
+            id="pkg-manager-integration"
+            phx-update="ignore"
+            phx-hook=".PkgManagerTabs"
+          >
+            <h3 class="font-semibold mb-2">Integration</h3>
+            <div class="tabs tabs-box">
+              <%= for {opt, index} <- Enum.with_index(@package_manager_options) do %>
+                <input
+                  type="radio"
+                  name="pkg-manager-tab"
+                  class="tab"
+                  aria-label={opt.label}
+                  value={opt.id}
+                  checked={index == 0}
+                  id={"pkg-manager-tab-#{opt.id}"}
+                />
+                <div class="tab-content bg-base-100 border-base-300 p-3">
+                  <pre class="text-xs overflow-x-auto"><code>{opt.code}</code></pre>
+                </div>
+              <% end %>
+            </div>
+            <script :type={Phoenix.LiveView.ColocatedHook} name=".PkgManagerTabs">
+              export default {
+                mounted() {
+                  const COOKIE = "pkg_manager"
+
+                  const read = () => document.cookie
+                    .split("; ")
+                    .find(row => row.startsWith(COOKIE + "="))
+                    ?.split("=")[1]
+
+                  const saved = read()
+                  if (saved) {
+                    const radio = this.el.querySelector(`input[value="${CSS.escape(decodeURIComponent(saved))}"]`)
+                    if (radio) radio.checked = true
+                  }
+
+                  this.el.addEventListener("change", e => {
+                    if (e.target.matches('input[type="radio"]')) {
+                      document.cookie = `${COOKIE}=${encodeURIComponent(e.target.value)}; path=/; max-age=31536000; SameSite=Lax`
+                    }
+                  })
+                }
+              }
+            </script>
+          </div>
+
           <.list>
             <:item title="Transport">{@server.transport}</:item>
             <:item :if={@server.remote_url} title="Endpoint">
@@ -232,9 +278,6 @@ defmodule McpRegistryWeb.ServerLive.Show do
       "How to integrate with Claude #{name} using MCP and Cursor #{name} using MCP " <>
       "so I can use them in Claude Code and Grok Bot."
   end
-
-  defp display_title(%{website_title: title}) when is_binary(title) and title != "", do: title
-  defp display_title(%{server: server}), do: server.title
 
   defp display_description(%{website_description: desc}) when is_binary(desc) and desc != "",
     do: desc

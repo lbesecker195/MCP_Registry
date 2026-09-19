@@ -40,6 +40,31 @@ defmodule McpRegistryWeb.ServerLiveTest do
     assert html =~ "get_forecast"
   end
 
+  test "show sets a fixed <h1> and an Integration tab strip for packaged servers", %{
+    conn: conn
+  } do
+    server = server_fixture(%{title: "Weather"})
+    {:ok, _view, html} = live(conn, "/servers/#{server.name}")
+
+    assert html =~ ~r{<h1[^>]*>\s*Weather MCP\s*</h1>}
+    assert html =~ "Integration"
+    assert html =~ "npx -y @acme/weather-mcp"
+    assert html =~ "pnpm dlx @acme/weather-mcp"
+    refute html =~ "Opening of the GitHub README"
+    refute html =~ "View repository"
+
+    remote =
+      server_fixture(%{
+        transport: "sse",
+        remote_url: "https://mcp.acme.dev/sse",
+        package_registry: nil,
+        package_identifier: nil
+      })
+
+    {:ok, _view, remote_html} = live(conn, "/servers/#{remote.name}")
+    refute remote_html =~ "Integration"
+  end
+
   test "show sets a fixed SEO title and meta description", %{conn: conn} do
     server = server_fixture(%{name: "io.github.upstash/context7-seo", title: "Context7"})
     html = conn |> get("/servers/#{server.name}") |> html_response(200)
