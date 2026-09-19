@@ -11,13 +11,33 @@ defmodule McpRegistryWeb.Plugs.GeoBlockTest do
 
   alias McpRegistryWeb.Plugs.GeoBlock
 
-  @mountain_view %{
+  # MaxMind gives a subdivision an iso_code; DB-IP Lite gives it only a name.
+  # Both real shapes are pinned, because the difference is silent: a rule
+  # written for one database simply never matches against the other.
+  @maxmind %{
     "city" => %{"names" => %{"en" => "Mountain View"}},
     "subdivisions" => [%{"iso_code" => "CA"}],
     "country" => %{"iso_code" => "US"}
   }
 
-  @rule [%{city: "Mountain View", subdivision: "CA", country: "US"}]
+  @dbip %{
+    "city" => %{"names" => %{"en" => "Mountain View"}},
+    "subdivisions" => [%{"names" => %{"en" => "California"}}],
+    "country" => %{"iso_code" => "US", "names" => %{"en" => "United States"}},
+    "location" => %{"latitude" => 37.422, "longitude" => -122.085}
+  }
+
+  @mountain_view @dbip
+
+  # The rule that actually ships: it lists both spellings, because neither one
+  # alone matches both databases.
+  @rule [
+    %{
+      city: "Mountain View",
+      subdivision: ["California", "CA"],
+      country: ["United States", "US"]
+    }
+  ]
 
   @public_ip {93, 184, 216, 34}
 
@@ -52,6 +72,25 @@ defmodule McpRegistryWeb.Plugs.GeoBlockTest do
       assert GeoBlock.blocked?(@public_ip)
     end
 
+    test "the shipped rule matches both database shapes" do
+      for entry <- [@dbip, @maxmind] do
+        configure(@rule, always(entry))
+        assert GeoBlock.blocked?(@public_ip), "expected #{inspect(entry)} to match"
+      end
+    end
+
+    test "a rule naming one spelling only matches the database that uses it" do
+      # This is the trap the shipped rule avoids: "CA" is MaxMind's spelling,
+      # so against DB-IP it matches nothing and the block quietly does not fire.
+      iso_only = [%{city: "Mountain View", subdivision: "CA", country: "US"}]
+
+      configure(iso_only, always(@maxmind))
+      assert GeoBlock.blocked?(@public_ip)
+
+      configure(iso_only, always(@dbip))
+      refute GeoBlock.blocked?(@public_ip)
+    end
+
     test "allows a different city" do
       configure(@rule, always(put_city(@mountain_view, "San Jose")))
 
@@ -59,10 +98,14 @@ defmodule McpRegistryWeb.Plugs.GeoBlockTest do
     end
 
     test "allows the same city name in another state or country" do
-      configure(@rule, always(put_subdivision(@mountain_view, "AR")))
+      configure(@rule, always(put_subdivision(@mountain_view, "Arkansas")))
       refute GeoBlock.blocked?(@public_ip)
 
-      configure(@rule, always(put_country(@mountain_view, "CA")))
+      configure(
+        @rule,
+        always(%{put_country(@mountain_view, "CA") | "country" => %{"iso_code" => "CA"}})
+      )
+
       refute GeoBlock.blocked?(@public_ip)
     end
 
@@ -154,6 +197,9 @@ defmodule McpRegistryWeb.Plugs.GeoBlockTest do
   end
 
   defp put_city(entry, name), do: put_in(entry, ["city", "names", "en"], name)
-  defp put_subdivision(entry, code), do: %{entry | "subdivisions" => [%{"iso_code" => code}]}
+
+  defp put_subdivision(entry, name),
+    do: %{entry | "subdivisions" => [%{"names" => %{"en" => name}}]}
+
   defp put_country(entry, code), do: put_in(entry, ["country", "iso_code"], code)
 end

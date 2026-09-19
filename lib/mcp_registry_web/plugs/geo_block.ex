@@ -6,7 +6,23 @@ defmodule McpRegistryWeb.Plugs.GeoBlock do
 
       config :mcp_registry, :geo_block,
         loader: :geoip_city,
-        cities: [%{city: "Mountain View", subdivision: "CA", country: "US"}]
+        source: :dbip,
+        cities: [
+          %{
+            city: "Mountain View",
+            subdivision: ["California", "CA"],
+            country: ["United States", "US"]
+          }
+        ]
+
+  A rule value may be one string or a list of acceptable spellings, and the
+  list earns its keep: MaxMind records a subdivision as `"CA"` while DB-IP
+  records it as `"California"`. A rule naming only one of them matches only
+  one database and gives no sign of it — the block simply never fires.
+
+  The default source is DB-IP's free city database, which needs no account and
+  no key, so this works on a fresh deploy. It is CC BY 4.0 and the required
+  credit is in the site footer.
 
   ## It fails open, on purpose
 
@@ -103,25 +119,43 @@ defmodule McpRegistryWeb.Plugs.GeoBlock do
 
   defp matches_any?(entry, cities) do
     place = %{
-      city: get_in(entry, ["city", "names", "en"]),
-      subdivision: entry |> Map.get("subdivisions", []) |> List.first() |> iso_code(),
-      country: get_in(entry, ["country", "iso_code"])
+      city: [get_in(entry, ["city", "names", "en"])],
+      subdivision: entry |> Map.get("subdivisions", []) |> List.first() |> subdivision_names(),
+      country: [
+        get_in(entry, ["country", "iso_code"]),
+        get_in(entry, ["country", "names", "en"])
+      ]
     }
 
     # A city name alone is not unique -- there is a Mountain View in several
-    # states and countries -- so every key the rule names has to agree.
+    # US states -- so every key the rule names has to agree.
     Enum.any?(cities, fn rule ->
       Enum.all?(rule, fn {key, value} ->
-        matches?(Map.get(place, key), value)
+        matches?(Map.get(place, key, []), value)
       end)
     end)
   end
 
-  defp iso_code(%{"iso_code" => code}), do: code
-  defp iso_code(_), do: nil
+  # The two databases disagree here, and the disagreement is silent: MaxMind
+  # gives a subdivision an `iso_code` ("CA"), DB-IP Lite gives it only a name
+  # ("California"). Collecting both means one rule works against either, rather
+  # than a rule that quietly never matches after a database swap.
+  defp subdivision_names(%{} = subdivision) do
+    [Map.get(subdivision, "iso_code"), get_in(subdivision, ["names", "en"])]
+  end
 
-  defp matches?(nil, _expected), do: false
+  defp subdivision_names(_), do: []
 
-  defp matches?(actual, expected),
-    do: String.downcase(actual) == String.downcase(expected)
+  # A rule value may be a single string or a list of acceptable spellings.
+  # The list matters: MaxMind records the subdivision as "CA" and DB-IP as
+  # "California", so a rule naming only one of them matches only one database,
+  # and does so silently.
+  defp matches?(candidates, expected) do
+    wanted = expected |> List.wrap() |> Enum.map(&String.downcase/1)
+
+    Enum.any?(candidates, fn
+      nil -> false
+      actual -> String.downcase(actual) in wanted
+    end)
+  end
 end

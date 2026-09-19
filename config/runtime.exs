@@ -53,14 +53,30 @@ end
 # Cities refused at the endpoint, before anything else runs. Every rule key has
 # to match, because a city name alone is not unique.
 #
-# MAXMIND_LICENSE_KEY is what turns this on. Without it the database is never
-# loaded and the block is inert -- deliberately, so a missing key degrades to
-# "everyone is allowed" rather than taking the site down. Get a free key at
-# https://www.maxmind.com/en/geolite2/signup
+# The source is DB-IP's free city database, which needs no account and no
+# licence key, so this is live on a fresh deploy. Set GEOIP_SOURCE=maxmind with
+# MAXMIND_LICENSE_KEY to use MaxMind instead; the rules below work with either.
+#
+# A rule value may list several spellings, and here it has to: MaxMind records
+# the subdivision as "CA" and DB-IP as "California". Naming only one of them
+# would match only one database, and would fail silently against the other.
+# Not in :test -- otherwise every `mix test` run downloads 57MB. The plug's own
+# tests inject a database response instead, so the matching rules stay covered.
 config :mcp_registry, :geo_block,
   loader: :geoip_city,
+  source: if(System.get_env("GEOIP_SOURCE") == "maxmind", do: :maxmind, else: :dbip),
   license_key: System.get_env("MAXMIND_LICENSE_KEY"),
-  cities: [%{city: "Mountain View", subdivision: "CA", country: "US"}]
+  cities:
+    if(config_env() == :test,
+      do: [],
+      else: [
+        %{
+          city: "Mountain View",
+          subdivision: ["California", "CA"],
+          country: ["United States", "US"]
+        }
+      ]
+    )
 
 if config_env() == :dev do
   # Reload browser tabs when matching files change.

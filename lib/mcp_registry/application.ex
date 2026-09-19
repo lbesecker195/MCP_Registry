@@ -37,29 +37,78 @@ defmodule McpRegistry.Application do
   # after a restart simply see no database yet -- which the plug treats as
   # "allow", like every other uncertain case.
   #
-  # With no licence key configured the loader is not started at all and the
-  # geo block is inert. That is the intended behaviour for development and for
-  # any deploy that has not been given a key, not an error.
+  # The default source needs no account and no key, so the block is live on a
+  # fresh deploy rather than sitting inert until someone registers.
   defp start_geoip_loader do
     config = Application.get_env(:mcp_registry, :geo_block, [])
 
-    with true <- Keyword.get(config, :cities, []) != [],
-         key when is_binary(key) and key != "" <- Keyword.get(config, :license_key) do
-      :ok = Application.put_env(:locus, :license_key, key)
+    if Keyword.get(config, :cities, []) != [] do
+      put_license_key(Keyword.get(config, :license_key))
+      loader = Keyword.get(config, :loader, :geoip_city)
 
-      case :locus.start_loader(
-             Keyword.get(config, :loader, :geoip_city),
-             {:maxmind, "GeoLite2-City"}
-           ) do
+      case :locus.start_loader(loader, geoip_source(config)) do
         :ok ->
-          Logger.info("GeoIP loader started; geo blocking is active")
+          Logger.info("GeoIP loader started; blocking begins once the database downloads")
 
         {:error, reason} ->
           Logger.warning("GeoIP loader failed to start (#{inspect(reason)}); geo blocking is off")
       end
-    else
-      _ -> :ok
     end
+
+    :ok
+  end
+
+  defp put_license_key(key) when is_binary(key) and key != "",
+    do: Application.put_env(:locus, :license_key, key)
+
+  defp put_license_key(_), do: :ok
+
+  # DB-IP publish a free city database under CC BY 4.0, with no account and no
+  # licence key. Attribution is a condition of that licence and is rendered in
+  # the site footer -- do not remove it there.
+  #
+  # The file is published monthly. Early in a month the current one can be a
+  # few hours late, so a HEAD check falls back to the previous month, which is
+  # always present, rather than leaving the loader retrying a 404 forever.
+  defp geoip_source(config) do
+    case Keyword.get(config, :source, :dbip) do
+      {:url, url} ->
+        url
+
+      :maxmind ->
+        {:maxmind, "GeoLite2-City"}
+
+      :dbip ->
+        today = Date.utc_today()
+        current = dbip_url(today)
+
+        if url_available?(current) do
+          current
+        else
+          today |> Date.beginning_of_month() |> Date.add(-1) |> dbip_url()
+        end
+    end
+  end
+
+  defp dbip_url(%Date{year: year, month: month}) do
+    padded = String.pad_leading("#{month}", 2, "0")
+    "https://download.db-ip.com/free/dbip-city-lite-#{year}-#{padded}.mmdb.gz"
+  end
+
+  # A HEAD request only. Locus fetches the body itself, in the background,
+  # after the loader starts, so boot is not waiting on 57MB.
+  defp url_available?(url) do
+    {:ok, _} = Application.ensure_all_started(:inets)
+    {:ok, _} = Application.ensure_all_started(:ssl)
+
+    case :httpc.request(:head, {String.to_charlist(url), []}, [timeout: 5_000], []) do
+      {:ok, {{_version, status, _reason}, _headers, _body}} when status in 200..299 -> true
+      _ -> false
+    end
+  rescue
+    _ -> false
+  catch
+    _, _ -> false
   end
 
   # Tell Phoenix to update the endpoint configuration
