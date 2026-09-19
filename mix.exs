@@ -41,6 +41,7 @@ defmodule McpRegistry.MixProject do
   defp deps do
     [
       {:phoenix, "~> 1.8.13"},
+      {:phoenix_analytics_middleware, github: "lbesecker195/Phoenix-Analytics"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},
       {:postgrex, ">= 0.0.0"},
