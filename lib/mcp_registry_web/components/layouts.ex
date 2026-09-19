@@ -252,47 +252,62 @@ defmodule McpRegistryWeb.Layouts do
         <.icon name="hero-sparkles" class="size-3.5 text-accent" /> Sponsored
       </h2>
 
-      <ul class="grid grid-cols-2 gap-2">
-        <li :for={slot <- @slots}>
-          <%!-- The frame clips; the image inside it scales. Putting the
-                transform on the <img> rather than the frame means the tile
-                keeps its place in the grid and nothing reflows on hover.
+      <%!-- 250px square, growing to 350px on hover -- a scale of 1.4.
 
-                If you ever check this in the console: Tailwind v4's `scale-*`
-                sets the standalone CSS `scale` property, so the hover state
-                shows up as `scale: 1.1` and `transform` stays `none`. --%>
+            One per row, not two up: at 250px a pair would be 500px wide and the
+            sidebar is roughly 360px. The tile also has to grow *past* its own
+            frame rather than be clipped by it, or hovering would just crop the
+            creative, so nothing here clips and the hovered slot lifts above its
+            neighbours with z-index. `max-w-full` keeps it inside the column on
+            a narrow screen, where the sidebar is full width.
+
+            If you check this in the console: Tailwind v4's `scale-*` sets the
+            standalone CSS `scale` property, so a hovered tile reads as
+            `scale: 1.4` while `transform` stays `none`. --%>
+      <ul class="flex flex-col items-center gap-3">
+        <li :for={slot <- @slots} class="relative z-0 hover:z-20">
           <a
             :if={slot.href}
             href={slot.href}
             target="_blank"
             rel="sponsored noopener noreferrer"
-            class="group block aspect-square overflow-hidden rounded-field border border-rule bg-sunken transition-colors hover:border-brand/50"
+            class={[sponsor_tile(), "border-rule hover:border-brand/60"]}
           >
             <img
               src={slot.image}
               alt={slot.alt}
               loading="lazy"
               decoding="async"
-              class="size-full object-contain p-1.5 transition-transform duration-500 ease-out will-change-transform group-hover:scale-110"
+              class="size-full object-contain"
             />
           </a>
 
           <div
             :if={is_nil(slot.href)}
-            class="group aspect-square overflow-hidden rounded-field border border-dashed border-rule bg-sunken transition-colors hover:border-rule-strong"
+            class={[sponsor_tile(), "border-dashed border-rule hover:border-rule-strong"]}
           >
             <img
               src={slot.image}
               alt={slot.alt}
               loading="lazy"
               decoding="async"
-              class="size-full object-contain p-1.5 transition-transform duration-500 ease-out will-change-transform group-hover:scale-110"
+              class="size-full object-contain"
             />
           </div>
         </li>
       </ul>
     </section>
     """
+  end
+
+  # The whole tile scales, border and all, so it reads as the slot growing
+  # rather than the artwork straining against a fixed frame.
+  defp sponsor_tile do
+    [
+      "block size-[250px] max-w-full rounded-field border bg-sunken p-1.5",
+      "transition-[scale,border-color] duration-300 ease-out will-change-transform",
+      "hover:scale-[1.4]"
+    ]
   end
 
   @doc """
