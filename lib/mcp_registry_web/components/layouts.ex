@@ -228,10 +228,12 @@ defmodule McpRegistryWeb.Layouts do
   belongs to the page frame, not to the listing being described, and any page
   can drop it into a sidebar.
 
-  The book is a live affiliate link and carries `rel="sponsored"`, which is
-  what Google asks for on paid or affiliate placements — without it the link
-  reads as an editorial endorsement and puts the whole page's ranking at risk.
-  The other three are unsold, and open a pre-filled enquiry email so an
+  The book tile points at `/book`, not at Amazon. A cold click from a 250px
+  tile to a product page converts badly; the landing page names the reader's
+  problem first and asks for the click afterwards, and the visit stays on the
+  site in the meantime. `/book` carries the affiliate link and its disclosure.
+
+  The other three slots are unsold, and open a pre-filled enquiry email so an
   interested buyer can name a price without leaving the page.
 
   Image paths go through `~p`, which appends the digest that
@@ -252,8 +254,8 @@ defmodule McpRegistryWeb.Layouts do
   @sponsor_slots [
     %{
       file: "Book.png",
-      alt: "Sponsored: book cover — opens Amazon",
-      kind: :affiliate
+      alt: "MCP Server Optimization — the book behind this registry",
+      kind: :book
     },
     %{file: "sponsor-1.png", alt: "Sponsor slot available — email to enquire", kind: :enquiry},
     %{file: "sponsor-2.png", alt: "Sponsor slot available — email to enquire", kind: :enquiry},
@@ -289,18 +291,14 @@ defmodule McpRegistryWeb.Layouts do
             `scale: 1.4` while `transform` stays `none`. --%>
       <ul class="flex flex-col items-center gap-3">
         <li :for={slot <- @slots} class="relative z-0 hover:z-20">
-          <%!-- The affiliate link opens in a new tab and is marked sponsored.
-                The enquiry links are mailto: -- no target, because a new tab
-                for a mail client leaves a blank window behind, and no
-                rel="sponsored", which describes paid outbound links and means
-                nothing on a mailto. --%>
+          <%!-- Both destinations are ours now -- /book and a mailto -- so
+                neither needs target="_blank" or rel="sponsored". The affiliate
+                link and its disclosure live on /book. --%>
           <a
             href={slot_href(slot)}
-            target={if slot.kind == :affiliate, do: "_blank"}
-            rel={if slot.kind == :affiliate, do: "sponsored noopener noreferrer"}
             class={[
               sponsor_tile(),
-              if(slot.kind == :affiliate,
+              if(slot.kind == :book,
                 do: "border-rule hover:border-brand/60",
                 else: "border-dashed border-rule hover:border-brand/60"
               )
@@ -330,7 +328,7 @@ defmodule McpRegistryWeb.Layouts do
     """
   end
 
-  defp slot_href(%{kind: :affiliate}), do: "https://amzn.to/4cPvd4j"
+  defp slot_href(%{kind: :book}), do: ~p"/book"
   defp slot_href(%{kind: :enquiry}), do: enquiry_mailto()
 
   # Built rather than written out, so the subject and body are escaped once and

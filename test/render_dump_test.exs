@@ -48,10 +48,12 @@ defmodule McpRegistryWeb.RenderDumpTest do
     {:ok, _view, detail} = live(conn, "/servers/#{server.name}")
     {:ok, _view, catalogue} = live(conn, ~p"/servers")
     {:ok, _view, landing} = live(conn, ~p"/")
+    {:ok, _view, book} = live(conn, ~p"/book")
 
     dump("detail", detail)
     dump("catalogue", catalogue)
     dump("landing", landing)
+    dump("book", book)
   end
 
   # The page links `/assets/css/app.css`, which a file:// URL cannot resolve,

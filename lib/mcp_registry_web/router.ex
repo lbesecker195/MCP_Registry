@@ -30,6 +30,7 @@ defmodule McpRegistryWeb.Router do
     # `*name` with an empty segment and never reaches the catalogue.
     live "/servers", ServerLive.Index, :index
     live "/submit", ServerLive.New, :new
+    live "/book", BookLive, :show
     get "/llms.txt", LlmsController, :show
   end
 
