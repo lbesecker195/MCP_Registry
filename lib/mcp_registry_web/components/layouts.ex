@@ -231,7 +231,14 @@ defmodule McpRegistryWeb.Layouts do
   The book is a live affiliate link and carries `rel="sponsored"`, which is
   what Google asks for on paid or affiliate placements — without it the link
   reads as an editorial endorsement and puts the whole page's ranking at risk.
-  The other three are unsold placeholders and are not links at all.
+  The other three are unsold, and open a pre-filled enquiry email so an
+  interested buyer can name a price without leaving the page.
+
+  Image paths go through `~p`, which appends the digest that
+  `Plug.Static` needs before it will answer with
+  `cache-control: max-age=31536000, immutable`. Referenced as plain strings
+  they come back with a bare `cache-control: public`, and every repeat visit
+  re-fetches the artwork.
 
   ## Examples
 
@@ -239,15 +246,18 @@ defmodule McpRegistryWeb.Layouts do
   """
   attr :class, :any, default: nil
 
+  @enquiry_subject "Interested Sponsor for MCP Harbor"
+  @enquiry_body "I'm interested in bidding $____ for a Sponsor position on MCP Harbor."
+
   @sponsor_slots [
     %{
-      image: "/images/Book.png",
-      alt: "Book cover — buy on Amazon",
-      href: "https://amzn.to/4cPvd4j"
+      file: "Book.png",
+      alt: "Sponsored: book cover — opens Amazon",
+      kind: :affiliate
     },
-    %{image: "/images/sponsor-1.png", alt: "Sponsor slot one", href: nil},
-    %{image: "/images/sponsor-2.png", alt: "Sponsor slot two", href: nil},
-    %{image: "/images/sponsor-3.png", alt: "Sponsor slot three", href: nil}
+    %{file: "sponsor-1.png", alt: "Sponsor slot available — email to enquire", kind: :enquiry},
+    %{file: "sponsor-2.png", alt: "Sponsor slot available — email to enquire", kind: :enquiry},
+    %{file: "sponsor-3.png", alt: "Sponsor slot available — email to enquire", kind: :enquiry}
   ]
 
   def sponsors(assigns) do
@@ -279,38 +289,61 @@ defmodule McpRegistryWeb.Layouts do
             `scale: 1.4` while `transform` stays `none`. --%>
       <ul class="flex flex-col items-center gap-3">
         <li :for={slot <- @slots} class="relative z-0 hover:z-20">
+          <%!-- The affiliate link opens in a new tab and is marked sponsored.
+                The enquiry links are mailto: -- no target, because a new tab
+                for a mail client leaves a blank window behind, and no
+                rel="sponsored", which describes paid outbound links and means
+                nothing on a mailto. --%>
           <a
-            :if={slot.href}
-            href={slot.href}
-            target="_blank"
-            rel="sponsored noopener noreferrer"
-            class={[sponsor_tile(), "border-rule hover:border-brand/60"]}
+            href={slot_href(slot)}
+            target={if slot.kind == :affiliate, do: "_blank"}
+            rel={if slot.kind == :affiliate, do: "sponsored noopener noreferrer"}
+            class={[
+              sponsor_tile(),
+              if(slot.kind == :affiliate,
+                do: "border-rule hover:border-brand/60",
+                else: "border-dashed border-rule hover:border-brand/60"
+              )
+            ]}
           >
             <img
-              src={slot.image}
+              src={~p"/images/#{slot.file}"}
               alt={slot.alt}
               loading="lazy"
               decoding="async"
               class="size-full object-contain"
             />
           </a>
-
-          <div
-            :if={is_nil(slot.href)}
-            class={[sponsor_tile(), "border-dashed border-rule hover:border-rule-strong"]}
-          >
-            <img
-              src={slot.image}
-              alt={slot.alt}
-              loading="lazy"
-              decoding="async"
-              class="size-full object-contain"
-            />
-          </div>
         </li>
       </ul>
+
+      <p class="text-center text-[11px] text-pretty text-dim">
+        Want a slot?
+        <a
+          href={enquiry_mailto()}
+          class="underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-brand"
+        >
+          Make an offer
+        </a>
+      </p>
     </section>
     """
+  end
+
+  defp slot_href(%{kind: :affiliate}), do: "https://amzn.to/4cPvd4j"
+  defp slot_href(%{kind: :enquiry}), do: enquiry_mailto()
+
+  # Built rather than written out, so the subject and body are escaped once and
+  # correctly. URI.encode_www_form/1 is wrong here: it encodes a space as "+",
+  # which mail clients paste into the subject line literally.
+  defp enquiry_mailto do
+    query =
+      URI.encode_query(
+        [subject: @enquiry_subject, body: @enquiry_body],
+        :rfc3986
+      )
+
+    "mailto:me@loganbesecker.com?" <> query
   end
 
   # The whole tile scales, border and all, so it reads as the slot growing
