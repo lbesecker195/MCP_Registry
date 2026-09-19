@@ -3,6 +3,7 @@ defmodule McpRegistry.Registry do
   import Ecto.Query, warn: false
 
   alias McpRegistry.Analytics
+  alias McpRegistry.Cache
   alias McpRegistry.Repo
   alias McpRegistry.Registry.Server
 
@@ -70,6 +71,7 @@ defmodule McpRegistry.Registry do
       |> Server.changeset(attrs)
       |> Ecto.Changeset.put_change(:origin, Keyword.get(opts, :origin, "local"))
       |> Repo.insert()
+      |> invalidate_on_write()
       |> tap(fn
         {:ok, server} ->
           Analytics.track(:server_submitted, %{
@@ -85,12 +87,12 @@ defmodule McpRegistry.Registry do
   end
 
   def update_server(%Server{} = server, attrs) do
-    server |> Server.changeset(attrs) |> Repo.update()
+    server |> Server.changeset(attrs) |> Repo.update() |> invalidate_on_write()
   end
 
   def approve_server(name) when is_binary(name) do
     with {:ok, server} <- fetch_server(name) do
-      server |> Ecto.Changeset.change(status: "active") |> Repo.update()
+      server |> Ecto.Changeset.change(status: "active") |> Repo.update() |> invalidate_on_write()
     end
   end
 
@@ -99,9 +101,28 @@ defmodule McpRegistry.Registry do
   @doc "Deletes a pending listing. Active listings cannot be rejected."
   def reject_server(name) when is_binary(name) do
     with {:ok, server} <- fetch_server(name) do
-      if server.status == "pending", do: Repo.delete(server), else: {:error, :not_pending}
+      if server.status == "pending",
+        do: server |> Repo.delete() |> invalidate_on_write(),
+        else: {:error, :not_pending}
     end
   end
+
+  @doc """
+  Drops the cached catalogue figures.
+
+  Called after anything that changes what `stats/0` or `top_tags/1` would
+  answer, so the day-long TTL is a ceiling rather than a staleness guarantee.
+  The official-registry sync calls this once at the end of a run rather than
+  per row.
+  """
+  def invalidate_cache, do: Cache.invalidate()
+
+  defp invalidate_on_write({:ok, _} = result) do
+    Cache.invalidate()
+    result
+  end
+
+  defp invalidate_on_write(result), do: result
 
   defp check_queue_capacity("pending") do
     max = Application.get_env(:mcp_registry, :submissions, [])[:max_pending] || 500
@@ -110,33 +131,64 @@ defmodule McpRegistry.Registry do
 
   defp check_queue_capacity(_status), do: :ok
 
-  @doc "The most-used tags among active servers, as `{tag, count}` pairs."
+  @doc """
+  The most-used tags among active servers, as `{tag, count}` pairs.
+
+  Counted in Postgres. The previous version selected `unnest(tags)` and tallied
+  in Elixir, which moved one row per tag per listing -- roughly ninety thousand
+  of them -- across the wire on every catalogue and landing page view.
+  """
   def top_tags(n \\ 12) do
-    Server
-    |> where([s], s.status == "active")
-    |> select([s], fragment("unnest(?)", s.tags))
-    |> Repo.all()
-    |> Enum.frequencies()
-    |> Enum.sort_by(fn {tag, count} -> {-count, tag} end)
-    |> Enum.take(n)
+    Cache.fetch({:top_tags, n}, fn ->
+      %{rows: rows} =
+        Repo.query!(
+          """
+          SELECT tag, count(*) AS uses
+          FROM (SELECT unnest(tags) AS tag FROM servers WHERE status = 'active') AS tags
+          GROUP BY tag
+          ORDER BY uses DESC, tag ASC
+          LIMIT $1
+          """,
+          [n]
+        )
+
+      Enum.map(rows, fn [tag, uses] -> {tag, uses} end)
+    end)
   end
 
-  def stats do
-    active = where(Server, [s], s.status == "active")
+  @doc """
+  Catalogue-wide counters for the landing page and the catalogue header.
 
-    %{
-      servers: Repo.aggregate(active, :count),
-      tools: active |> select([s], sum(fragment("cardinality(?)", s.tools))) |> Repo.one() || 0,
-      remote: active |> where([s], s.transport != "stdio") |> Repo.aggregate(:count),
-      official: active |> where([s], s.origin == "official") |> Repo.aggregate(:count),
-      # Listings that exist here and nowhere upstream -- submitted straight to
-      # Harbor rather than mirrored in. `origin` defaults to "local" but is
-      # nullable on rows predating that default, so NULL counts as ours too.
-      unique:
-        active
-        |> where([s], is_nil(s.origin) or s.origin != "official")
-        |> Repo.aggregate(:count)
-    }
+  One pass over the active rows using filtered aggregates, rather than the five
+  separate full-table scans this used to issue per page view.
+  """
+  def stats do
+    Cache.fetch(:stats, fn ->
+      %{rows: [row]} =
+        Repo.query!("""
+        SELECT
+          count(*),
+          coalesce(sum(cardinality(tools)), 0),
+          count(*) FILTER (WHERE transport <> 'stdio'),
+          count(*) FILTER (WHERE origin = 'official'),
+          -- Listings that exist here and nowhere upstream. `origin` defaults to
+          -- 'local' but is nullable on rows predating that default, so NULL
+          -- counts as ours too.
+          count(*) FILTER (WHERE origin IS NULL OR origin <> 'official')
+        FROM servers
+        WHERE status = 'active'
+        """)
+
+      [servers, tools, remote, official, unique] = row
+
+      %{
+        servers: servers,
+        tools: trunc(tools),
+        remote: remote,
+        official: official,
+        unique: unique
+      }
+    end)
   end
 
   defp base_query(opts) do
@@ -155,13 +207,18 @@ defmodule McpRegistry.Registry do
       q ->
         pattern = "%" <> escape_like(q) <> "%"
 
+        # mcp_array_to_text/1 rather than array_to_string/2: same result, but
+        # IMMUTABLE, so the trigram indexes on these two columns can exist and
+        # the planner can match this expression to them. Change one and the
+        # other has to change with it, or search silently falls back to a
+        # sequential scan. See the IndexSearchColumns migration.
         where(
           query,
           [s],
           ilike(s.name, ^pattern) or ilike(s.title, ^pattern) or
             ilike(s.description, ^pattern) or
-            fragment("array_to_string(?, ' ') ILIKE ?", s.tags, ^pattern) or
-            fragment("array_to_string(?, ' ') ILIKE ?", s.tools, ^pattern)
+            fragment("mcp_array_to_text(?) ILIKE ?", s.tags, ^pattern) or
+            fragment("mcp_array_to_text(?) ILIKE ?", s.tools, ^pattern)
         )
     end
   end
