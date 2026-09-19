@@ -193,6 +193,30 @@ defmodule McpRegistry.RegistryTest do
 
       assert json_code =~ ~s("type": "sse")
     end
+
+    test "package_manager_options/1 lists per-registry package-manager commands" do
+      npm = server_fixture()
+      ids = npm |> Install.package_manager_options() |> Enum.map(& &1.id)
+      assert ids == ["npx", "npm", "pnpm", "yarn", "bun"]
+
+      assert %{code: "npx -y @acme/weather-mcp"} =
+               Enum.find(Install.package_manager_options(npm), &(&1.id == "npx"))
+
+      pypi =
+        server_fixture(%{package_registry: "pypi", package_identifier: "acme-weather-mcp"})
+
+      assert Install.package_manager_options(pypi) |> Enum.map(& &1.id) == ["uvx", "pip", "pipx"]
+
+      remote =
+        server_fixture(%{
+          transport: "sse",
+          remote_url: "https://mcp.acme.dev/sse",
+          package_registry: nil,
+          package_identifier: nil
+        })
+
+      assert Install.package_manager_options(remote) == []
+    end
   end
 
   describe "Server.company_name/1" do

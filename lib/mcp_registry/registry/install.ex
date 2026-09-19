@@ -14,6 +14,50 @@ defmodule McpRegistry.Registry.Install do
 
   def command(_), do: nil
 
+  @doc """
+  Alternative package-manager invocations for the same package, as a list of
+  `%{id, label, code}` maps -- one tab's worth each. Empty for remote-only
+  listings and registries with no package-manager front-end of their own
+  (`mcpb` ships a bundle file, not something a package manager fetches).
+  """
+  def package_manager_options(%Server{package_registry: "npm", package_identifier: id}) do
+    [
+      %{id: "npx", label: "npx", code: "npx -y #{id}"},
+      %{id: "npm", label: "npm", code: "npm install -g #{id}"},
+      %{id: "pnpm", label: "pnpm", code: "pnpm dlx #{id}"},
+      %{id: "yarn", label: "yarn", code: "yarn dlx #{id}"},
+      %{id: "bun", label: "bun", code: "bunx #{id}"}
+    ]
+  end
+
+  def package_manager_options(%Server{package_registry: "pypi", package_identifier: id}) do
+    [
+      %{id: "uvx", label: "uvx", code: "uvx #{id}"},
+      %{id: "pip", label: "pip", code: "pip install #{id}"},
+      %{id: "pipx", label: "pipx", code: "pipx run #{id}"}
+    ]
+  end
+
+  def package_manager_options(%Server{package_registry: "oci", package_identifier: id}) do
+    [
+      %{id: "docker", label: "Docker", code: "docker run -i --rm #{id}"},
+      %{id: "podman", label: "Podman", code: "podman run -i --rm #{id}"}
+    ]
+  end
+
+  def package_manager_options(%Server{package_registry: "nuget", package_identifier: id}) do
+    [
+      %{id: "dnx", label: "dnx", code: "dnx #{id} --yes"},
+      %{id: "dotnet", label: ".NET tool", code: "dotnet tool install --global #{id}"}
+    ]
+  end
+
+  def package_manager_options(%Server{package_registry: "cargo", package_identifier: id}) do
+    [%{id: "cargo", label: "cargo", code: "cargo install #{id}"}]
+  end
+
+  def package_manager_options(_), do: []
+
   @doc "A list of `%{label, lang, code}` snippets for the server."
   def snippets(%Server{} = server) do
     short = Server.short_name(server)
