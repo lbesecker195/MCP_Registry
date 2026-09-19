@@ -66,8 +66,14 @@ config :mcp_registry, :geo_block,
   loader: :geoip_city,
   source: if(System.get_env("GEOIP_SOURCE") == "maxmind", do: :maxmind, else: :dbip),
   license_key: System.get_env("MAXMIND_LICENSE_KEY"),
+  # OFF unless GEO_BLOCK_ENABLED=true. Loading the city database cost about
+  # 179MB resident and the production box could not carry it alongside
+  # Postgres: the kernel reclaimed memory, every database-backed route hung,
+  # and the site was down while /nope -- the one route that touches no
+  # database -- kept answering. Do not turn this on again until the box has
+  # headroom for it, or until the lookup moves out of this VM.
   cities:
-    if(config_env() == :test,
+    if(config_env() == :test or System.get_env("GEO_BLOCK_ENABLED") != "true",
       do: [],
       else: [
         %{
