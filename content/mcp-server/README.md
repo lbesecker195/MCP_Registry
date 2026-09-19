@@ -6,6 +6,8 @@ date: 2026-09-15
 
 # What Is an MCP Server? How MCP Servers Work
 
+> 📖 **Read the comprehensive 20,000+ word technical guide:** [MCP Server Development - Best Practices and Architecture](https://ai.mcpharbor.dev/servers) covers in-depth server design patterns, security implementation, performance optimization, testing strategies, deployment, monitoring, and advanced architectural considerations for production-ready MCP servers.
+
 If you have spent any time with modern AI coding agents or chat assistants that can *do* things—not just talk about them—you have probably heard the phrase **mcp server**. An MCP server is the practical unit that turns a large language model from a conversationalist into a tool-using collaborator. It exposes capabilities (tools, resources, and prompts) over the Model Context Protocol so clients like Claude, Cursor, and other agent hosts can call them safely and consistently.
 
 This guide is the deep, publish-ready overview of what an MCP server is, how MCP servers are structured, how local (stdio) packages differ from remote HTTP endpoints, what manifests communicate at a high level, and how to discover trustworthy servers without spelunking random GitHub repos. Along the way you will see how [MCP Harbor](https://ai.mcpharbor.dev/)—owned by Logan Besecker—indexes tens of thousands of entries (including official registry data, kept in sync), and how agents can search and submit through Harbor’s MCP surface with no account required.

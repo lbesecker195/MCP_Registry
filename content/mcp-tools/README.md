@@ -4,6 +4,8 @@ description: "Learn what MCP tools are, how they differ from resources and promp
 date: 2026-09-15
 ---
 
+> 📖 **Read the comprehensive 20,000+ word technical guide:** [MCP Tools & Ecosystems - Supporting Infrastructure](https://ai.mcpharbor.dev/servers) covers development tools, performance testing frameworks, documentation generation, integration platforms, monitoring solutions, analytics systems, community resources, and the broader MCP ecosystem.
+
 # MCP Tools Explained: Tools, Resources, and Prompts
 
 If you have spent any time wiring AI agents into real workflows, you have already felt the gap between a chat model that can *talk* about work and a system that can *do* work. That gap is where **mcp tools** live. Model Context Protocol (MCP) defines a clean contract for tools, resources, and prompts so that clients like Claude, Cursor, and other agent hosts can call capabilities on MCP servers without inventing a new integration for every product.

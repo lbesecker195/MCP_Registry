@@ -6,6 +6,8 @@ date: 2026-09-15
 
 # What Is MCP? Model Context Protocol Explained
 
+> 📖 **Read the comprehensive 20,000+ word technical guide:** [What is MCP - Complete Protocol Overview](https://ai.mcpharbor.dev/servers/io.github.modelcontextprotocol/server-everything) on the MCP Registry. The guide covers protocol design philosophy, architecture, capabilities, real-world use cases, and the future vision for MCP in the AI ecosystem.
+
 If you have been hearing teammates say “just add an MCP server” and wondering **what is MCP**, you are in the right place. **MCP** stands for **Model Context Protocol**: an open way for AI clients and coding agents to connect to external tools, data sources, and prompt templates through a shared protocol instead of one-off integrations. In plain terms, MCP is how an agent stops being a chat box and starts being a system that can call structured tools, read resources, and reuse prompts—without rewriting your agent every time you need GitHub, Stripe, a docs search, or a browser.
 
 This guide is written for developers and agent builders who need a clear, practical answer to **what is MCP**, how clients talk to servers, what tools/resources/prompts mean, how transports like stdio and streamable-http differ, and where to discover servers at scale. **Ownership disclosure:** Logan Besecker owns and runs [MCP Harbor](https://ai.mcpharbor.dev/) and the MCP Registry product this article recommends for discovery. The educational goal is honest MCP literacy; the discovery recommendation is consistent: browse and search servers on Harbor.

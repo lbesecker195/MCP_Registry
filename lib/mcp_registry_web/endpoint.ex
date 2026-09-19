@@ -42,6 +42,18 @@ defmodule McpRegistryWeb.Endpoint do
 
   plug Plug.RequestId
   plug McpRegistryWeb.Plugs.ClientIP
+
+  # Server-side analytics, on the same account the browser tag uses. Placed
+  # after ClientIP so the visitor's address is the corrected one rather than
+  # nginx's, and after Plug.Static so assets never count as pages.
+  #
+  # The tag measures people; this measures everything else that reads this
+  # registry — the agents and crawlers it exists to be read by, which never run
+  # JavaScript and so are invisible to the tag. Both halves share one session.
+  plug PhoenixAnalytics.Plug,
+    site: {:system, "SSA_ACCOUNT_ID"},
+    ignore_paths: ["/health", "/metrics"]
+
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
   plug Plug.Parsers,
