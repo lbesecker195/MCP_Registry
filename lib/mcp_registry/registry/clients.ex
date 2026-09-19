@@ -35,6 +35,8 @@ defmodule McpRegistry.Registry.Clients do
     * `:id` -- stable slug, used for the tab's DOM ids
     * `:label` -- the client's name
     * `:kind` -- `:cli` for a command to run, `:json` for a file to edit
+    * `:accepts_secrets` -- whether `<PLACEHOLDER>` substitution applies. False
+      for VS Code, whose secrets go through its own `inputs` prompt instead
     * `:path` -- where the config lives, or the scope for a CLI
     * `:path_windows` -- the Windows spelling of `:path`, when it differs
     * `:code` -- the snippet
@@ -81,6 +83,7 @@ defmodule McpRegistry.Registry.Clients do
       id: "claude-code",
       label: "Claude Code",
       kind: :cli,
+      accepts_secrets: true,
       path: "run in your project directory",
       path_windows: nil,
       code: code,
@@ -111,6 +114,7 @@ defmodule McpRegistry.Registry.Clients do
       id: "claude-desktop",
       label: "Claude Desktop",
       kind: :json,
+      accepts_secrets: true,
       path: "~/Library/Application Support/Claude/claude_desktop_config.json",
       path_windows: "%APPDATA%\\Claude\\claude_desktop_config.json",
       code: wrap(server, "mcpServers", entry),
@@ -139,6 +143,7 @@ defmodule McpRegistry.Registry.Clients do
       id: "cursor",
       label: "Cursor",
       kind: :json,
+      accepts_secrets: true,
       path: "~/.cursor/mcp.json",
       path_windows: "%USERPROFILE%\\.cursor\\mcp.json",
       code: wrap(server, "mcpServers", entry),
@@ -191,6 +196,7 @@ defmodule McpRegistry.Registry.Clients do
       id: "vscode",
       label: "VS Code",
       kind: :json,
+      accepts_secrets: false,
       path: ".vscode/mcp.json",
       path_windows: nil,
       code: encode(document),
@@ -241,6 +247,7 @@ defmodule McpRegistry.Registry.Clients do
       id: "zed",
       label: "Zed",
       kind: :json,
+      accepts_secrets: true,
       path: "~/.config/zed/settings.json",
       path_windows: "%APPDATA%\\Zed\\settings.json",
       code: wrap(server, "context_servers", entry),
@@ -263,6 +270,7 @@ defmodule McpRegistry.Registry.Clients do
       id: "windsurf",
       label: "Windsurf",
       kind: :json,
+      accepts_secrets: true,
       path: "~/.codeium/windsurf/mcp_config.json",
       path_windows: "%USERPROFILE%\\.codeium\\windsurf\\mcp_config.json",
       code: wrap(server, "mcpServers", entry),

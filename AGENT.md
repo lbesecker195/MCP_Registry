@@ -117,6 +117,41 @@ eyebrow labels; the eyebrow pattern is
 Dark mode is automatic through the tokens — **never write `dark:` variants for
 colour**, and never hardcode a Tailwind palette colour or a hex value.
 
+### The console template
+
+The site's pages are built from one shared vocabulary, defined in
+`core_components.ex`. `/servers/*` (`ServerLive.Show`) is the reference
+implementation — read it before designing a new page, and reach for these
+rather than hand-rolling the same shapes again.
+
+| Component | What it is |
+|---|---|
+| `<.monogram name={server.name} />` | Identity tile. Hue is `phash2` of the name, so a listing draws the same colour everywhere. |
+| `<.badge tone="success" dot>` | Status pill. Tones: neutral, brand, success, warning, danger, accent. |
+| `<.meta_chip key="transport" value="stdio" />` | A `key:value` fact in mono, for the row under a title. |
+| `<.code_block id=… code=… copy_label=… />` | Multi-line config with a copy button. `<SCREAMING_SNAKE>` runs are highlighted as placeholders. |
+| `<.copy_command id=… command=… />` | Single shell command with a `$` gutter. |
+| `<.panel title=… icon=…>` | Bordered group with an uppercase mono label — the sidebar unit. |
+| `<.spec_row label=… value=… />` | One hairline-separated key/value line inside a panel. |
+| `<.segmented options=… selected=… event=… />` | Pill switcher; the caller owns the state. |
+| `<.tab_button tab=… current=… event=… />` | Underlined tab; the caller owns the state. |
+| `<Layouts.app><:rail>` | Full-width bar pinned under the header, for breadcrumbs and status. |
+
+Page skeleton: rail → identity block (monogram, title, version chip, meta
+chips) → a primary action card → a `lg:grid-cols-12` split of `lg:col-span-8`
+content and a `lg:col-span-4` sticky rail of panels.
+
+**Tabs and switchers are LiveView state**, driven by `phx-click` and an
+assign. The exception is the package-manager switcher, which stays CSS-only
+so it costs no round trip. In that pattern the radios, labels and panels must
+be **direct siblings in one container** — Tailwind's `peer-checked/<id>:`
+compiles to a sibling combinator, so a label nested one div deeper silently
+never reacts and every tab looks inert.
+
+Long-form content (generated articles, upstream READMEs) is **never** put
+behind a tab. It stays rendered in the page, because that is what the page
+ranks on.
+
 ### Icons
 
 Heroicons are **inlined as SVG at compile time** by `icon_data/1` in

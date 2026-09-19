@@ -16,7 +16,7 @@ defmodule McpRegistryWeb.ServerLiveTest do
         tools: ["add_note"]
       })
 
-    {:ok, view, html} = live(conn, ~p"/")
+    {:ok, view, html} = live(conn, ~p"/servers")
     assert html =~ weather.title
     assert html =~ notes.title
     assert html =~ "Seriously Simple Analytics"
@@ -27,7 +27,7 @@ defmodule McpRegistryWeb.ServerLiveTest do
     html = view |> element("form") |> render_change(%{q: "notes", transport: ""})
     assert html =~ notes.title
     refute html =~ weather.title
-    assert_patch(view, ~p"/?q=notes")
+    assert_patch(view, ~p"/servers?q=notes")
   end
 
   test "show renders install snippets and the manifest", %{conn: conn} do
@@ -36,7 +36,7 @@ defmodule McpRegistryWeb.ServerLiveTest do
 
     assert html =~ "claude mcp add"
     assert html =~ "@acme/weather-mcp"
-    assert html =~ "server.json manifest"
+    assert html =~ "server.json"
     assert html =~ "get_forecast"
   end
 
@@ -47,7 +47,7 @@ defmodule McpRegistryWeb.ServerLiveTest do
     {:ok, _view, html} = live(conn, "/servers/#{server.name}")
 
     assert html =~ ~r{<h1[^>]*>\s*Weather MCP\s*</h1>}
-    assert html =~ "Integration"
+    assert html =~ "Package managers"
     assert html =~ "npx -y @acme/weather-mcp"
     assert html =~ "pnpm dlx @acme/weather-mcp"
     assert html =~ "Homebrew"
@@ -64,7 +64,7 @@ defmodule McpRegistryWeb.ServerLiveTest do
       })
 
     {:ok, _view, remote_html} = live(conn, "/servers/#{remote.name}")
-    refute remote_html =~ "Integration"
+    refute remote_html =~ "Package managers"
   end
 
   test "show sets a fixed SEO title and meta description", %{conn: conn} do
@@ -98,17 +98,17 @@ defmodule McpRegistryWeb.ServerLiveTest do
       })
     end
 
-    {:ok, view, html} = live(conn, ~p"/")
+    {:ok, view, html} = live(conn, ~p"/servers")
     assert html =~ "Showing 1–48 of 50 servers"
     assert html =~ "Bulk 48"
     refute html =~ "Bulk 49"
 
     html = view |> element("#pagination a[rel=next]") |> render_click()
-    assert_patch(view, ~p"/?page=2")
+    assert_patch(view, ~p"/servers?page=2")
     assert html =~ "Showing 49–50 of 50 servers"
     assert html =~ "Bulk 50"
 
-    {:ok, _view, html} = live(conn, ~p"/?page=999")
+    {:ok, _view, html} = live(conn, ~p"/servers?page=999")
     assert html =~ "Showing 49–50 of 50 servers"
   end
 
@@ -119,9 +119,82 @@ defmodule McpRegistryWeb.ServerLiveTest do
       |> McpRegistry.Repo.update!()
 
     {:ok, _view, html} = live(conn, "/servers/#{server.name}")
-    assert html =~ "official MCP Registry"
-    assert html =~ "synced just now"
+    assert html =~ "Verified official"
+    assert html =~ "just now"
     assert html =~ McpRegistry.OfficialRegistry.server_url(server.name)
+  end
+
+  test "the install hub switches client and fills placeholders as you type", %{conn: conn} do
+    server = server_fixture()
+    {:ok, view, html} = live(conn, "/servers/#{server.name}")
+
+    # Claude Code is offered first, and the secret starts as a placeholder.
+    assert html =~ "claude mcp add"
+    assert html =~ "&lt;WEATHER_API_KEY&gt;"
+
+    # Each client's own shape -- these keys are not interchangeable, and a
+    # wrong one fails silently in the client, so pin them.
+    html = view |> element("button[phx-value-client=claude-desktop]") |> render_click()
+    assert html =~ "mcpServers"
+
+    html = view |> element("button[phx-value-client=vscode]") |> render_click()
+    assert html =~ "&quot;servers&quot;"
+    refute html =~ "mcpServers"
+
+    html = view |> element("button[phx-value-client=zed]") |> render_click()
+    assert html =~ "context_servers"
+
+    # Typing a token rewrites the rendered snippet in place.
+    html =
+      view
+      |> element("button[phx-value-client=cursor]")
+      |> render_click()
+
+    assert html =~ "&lt;WEATHER_API_KEY&gt;"
+
+    html =
+      view
+      |> form("form[phx-change=update_secrets]", secrets: %{"WEATHER_API_KEY" => "sk-live-42"})
+      |> render_change()
+
+    assert html =~ "sk-live-42"
+    refute html =~ "&lt;WEATHER_API_KEY&gt;"
+  end
+
+  test "remote listings get a remote-shaped config per client", %{conn: conn} do
+    server =
+      server_fixture(%{
+        transport: "streamable-http",
+        remote_url: "https://mcp.acme.dev/mcp",
+        package_registry: nil,
+        package_identifier: nil,
+        env_vars: []
+      })
+
+    {:ok, view, html} = live(conn, "/servers/#{server.name}")
+    assert html =~ "claude mcp add --transport http"
+
+    # Windsurf spells the remote endpoint serverUrl, not url.
+    html = view |> element("button[phx-value-client=windsurf]") |> render_click()
+    assert html =~ "serverUrl"
+
+    # Claude Desktop has no remote form at all, so it bridges via mcp-remote.
+    html = view |> element("button[phx-value-client=claude-desktop]") |> render_click()
+    assert html =~ "mcp-remote"
+  end
+
+  test "the capability explorer filters tools and flags mutating ones", %{conn: conn} do
+    server = server_fixture(%{tools: ["get_forecast", "delete_alert"]})
+    {:ok, view, html} = live(conn, "/servers/#{server.name}")
+
+    assert html =~ "get_forecast"
+    assert html =~ "delete_alert"
+    assert html =~ "Read-only"
+    assert html =~ "Mutating"
+
+    html = view |> form("form[phx-change=filter_tools]", query: "delete") |> render_change()
+    assert html =~ "delete_alert"
+    refute html =~ "get_forecast"
   end
 
   test "show 404s for unknown servers", %{conn: conn} do

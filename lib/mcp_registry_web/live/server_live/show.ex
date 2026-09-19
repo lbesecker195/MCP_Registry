@@ -1,14 +1,19 @@
 defmodule McpRegistryWeb.ServerLive.Show do
   @moduledoc """
-  One listing at `/servers/*name`, laid out as an install console rather than
-  an article.
+  One listing at `/servers/*name`, laid out as an install console.
 
   The page answers three questions in the order people ask them: what is this
-  (the rail and the hero), how do I wire it up (the install hub), and what can
-  it actually do (the tool explorer and the metadata rail). Long-form content --
-  the generated article and the upstream README -- sits below all of that,
-  always rendered rather than hidden behind a tab, because it is what the page
-  ranks on.
+  (the rail and the identity block), how do I wire it up (the install hub), and
+  what can it actually do (the capability explorer and the spec rail). Long-form
+  content -- the generated article and the upstream README -- sits below all of
+  that, always rendered rather than hidden behind a tab, because it is what the
+  page ranks on.
+
+  Tabs and the client switcher are LiveView state rather than CSS, so the
+  install hub can rewrite the snippet as you type a secret into it. Nothing
+  typed there is stored: it lives in this process's assigns for the life of the
+  connection, is filtered out of the logs in `config/config.exs`, and is gone on
+  reload.
   """
   use McpRegistryWeb, :live_view
 
@@ -18,13 +23,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
   @impl true
   def mount(%{"name" => segments}, _session, socket) do
     server = Registry.get_server!(Enum.join(segments, "/"))
-
-    article_html =
-      if server.article_content do
-        markdown_to_html(server.article_content)
-      else
-        nil
-      end
+    clients = Clients.configs(server)
 
     socket =
       assign(socket,
@@ -39,9 +38,14 @@ defmodule McpRegistryWeb.ServerLive.Show do
         short_name: Server.short_name(server),
         namespace: String.trim_trailing(Server.namespace(server), "/"),
         package_manager_options: Install.package_manager_options(server),
-        clients: Clients.configs(server),
         manifest: Jason.encode!(Manifest.to_map(server), pretty: true),
-        article_html: article_html,
+        article_html: markdown_to_html(server.article_content),
+        clients: clients,
+        selected_client: default_client(clients),
+        active_tab: "tools",
+        tool_query: "",
+        tools: decorate_tools(server.tools),
+        secrets: Map.new(server.env_vars, &{&1, ""}),
         website_title: nil,
         website_description: nil,
         readme_html: nil,
@@ -52,11 +56,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
     socket =
       if connected?(socket) do
         lv = self()
-
-        Task.start(fn ->
-          send(lv, {:remote_content, RemoteContent.fetch(server)})
-        end)
-
+        Task.start(fn -> send(lv, {:remote_content, RemoteContent.fetch(server)}) end)
         socket
       else
         assign(socket, remote_loading: false)
@@ -77,6 +77,30 @@ defmodule McpRegistryWeb.ServerLive.Show do
        readme_url: remote.readme_url,
        remote_loading: false
      )}
+  end
+
+  @impl true
+  def handle_event("select_client", %{"client" => id}, socket) do
+    {:noreply, assign(socket, :selected_client, id)}
+  end
+
+  def handle_event("select_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, :active_tab, tab)}
+  end
+
+  def handle_event("filter_tools", %{"query" => query}, socket) do
+    {:noreply, assign(socket, :tool_query, query)}
+  end
+
+  # Only keys the listing actually declares are kept, so nothing arbitrary can
+  # be pushed into a rendered snippet.
+  def handle_event("update_secrets", %{"secrets" => submitted}, socket) do
+    secrets =
+      Map.new(socket.assigns.secrets, fn {var, current} ->
+        {var, Map.get(submitted, var, current)}
+      end)
+
+    {:noreply, assign(socket, :secrets, secrets)}
   end
 
   @impl true
@@ -105,7 +129,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
 
         <div class="flex shrink-0 items-center gap-2">
           <.badge :if={@server.synced_at} tone="success" dot>Verified official</.badge>
-          <.badge :if={is_nil(@server.synced_at) and @server.status == "active"} tone="neutral">
+          <.badge :if={is_nil(@server.synced_at) and @server.status == "active"}>
             Community listing
           </.badge>
           <.badge :if={@server.status == "pending"} tone="warning" dot>Pending review</.badge>
@@ -132,13 +156,17 @@ defmodule McpRegistryWeb.ServerLive.Show do
           <div class="flex items-start gap-3.5">
             <.monogram name={@server.name} size="size-12 text-lg" />
 
+            <%!-- The version sits beside the <h1>, not inside it: the heading
+                  is the page's SEO title and stays exactly that string. --%>
             <div class="min-w-0 space-y-1">
-              <h1 class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-2xl font-semibold tracking-tight text-balance">
-                {meta_title(@server)}
+              <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <h1 class="text-2xl font-semibold tracking-tight text-balance">
+                  {meta_title(@server)}
+                </h1>
                 <span class="rounded-field border border-rule bg-surface px-2 py-0.5 font-mono text-xs font-normal text-dim">
                   v{@server.version}
                 </span>
-              </h1>
+              </div>
               <p class="font-mono text-xs break-all text-dim">{@server.name}</p>
             </div>
           </div>
@@ -149,10 +177,13 @@ defmodule McpRegistryWeb.ServerLive.Show do
 
           <div class="flex flex-wrap gap-1.5 pt-1">
             <.meta_chip key="transport" value={@server.transport} tone="brand" />
-            <.meta_chip :if={@server.package_registry} key="runtime" value={@server.package_registry} />
+            <.meta_chip
+              :if={@server.package_registry}
+              key="runtime"
+              value={@server.package_registry}
+            />
             <.meta_chip :if={@server.license} key="license" value={@server.license} />
-            <.meta_chip :if={@server.tools != []} key="tools" value={length(@server.tools)} />
-            <.meta_chip :if={@server.env_vars != []} key="secrets" value={length(@server.env_vars)} />
+            <.meta_chip :if={@tools != []} key="tools" value={length(@tools)} />
           </div>
         </div>
 
@@ -163,7 +194,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
             href={@server.repository_url}
             rel="nofollow ugc noopener"
           >
-            <.icon name="hero-code-bracket" class="size-4" /> Source repository
+            <.icon name="hero-code-bracket" class="size-4" /> View source
           </.button>
           <.button
             :if={@server.website_url}
@@ -184,101 +215,95 @@ defmodule McpRegistryWeb.ServerLive.Show do
         class="rise scroll-mt-32 space-y-4 rounded-box border border-rule bg-surface/60 p-4 sm:p-5"
         style="--d: 80ms"
       >
-        <%!-- CSS-only tabs: no round trip, and the choice survives a LiveView
-              patch. Radios, labels and panels must be DIRECT siblings in one
-              container -- Tailwind's peer variants compile to a sibling
-              combinator, so a label nested one div deeper would never react to
-              its radio, and every tab would look inert. --%>
-        <div
-          id="client-tabs"
-          phx-update="ignore"
-          phx-hook=".ClientTabs"
-          class="flex flex-wrap items-center gap-x-3 gap-y-2"
-        >
-          <h2 id="install-heading" class="font-mono text-[11px] tracking-wide text-dim uppercase">
-            Target environment
-          </h2>
-
-          <input
-            :for={{client, index} <- Enum.with_index(@clients)}
-            type="radio"
-            name="client-tab"
-            id={"client-tab-#{client.id}"}
-            value={client.id}
-            checked={index == 0}
-            class={"peer/#{client.id} sr-only"}
-          />
-
-          <label
-            :for={client <- @clients}
-            for={"client-tab-#{client.id}"}
-            class={client_tab_class(client.id)}
-          >
-            {client.label}
-          </label>
-
-          <div :for={client <- @clients} class={tab_panel_class(client.id)}>
-            <div class="mt-3 space-y-2">
-              <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-                <p class="flex min-w-0 items-center gap-1.5 font-mono text-[11px] text-dim">
-                  <.icon
-                    name={if client.kind == :cli, do: "hero-command-line", else: "hero-code-bracket"}
-                    class="size-3.5 shrink-0"
-                  />
-                  <span class="truncate">{client.path}</span>
-                </p>
-                <p :if={client.path_windows} class="font-mono text-[11px] text-dim">
-                  <span class="opacity-70">windows:</span> {client.path_windows}
-                </p>
-              </div>
-
-              <.code_block
-                id={"client-config-#{client.id}"}
-                code={client.code}
-                copy_label={if client.kind == :cli, do: "Copy command", else: "Copy config"}
-                max_height="max-h-96"
-              />
-
-              <p :if={client.note} class="flex items-start gap-1.5 text-xs text-pretty text-dim">
-                <.icon name="hero-information-circle" class="mt-px size-3.5 shrink-0" />
-                <span>
-                  {client.note}
-                  <a
-                    href={client.docs_url}
-                    rel="nofollow noopener"
-                    class="whitespace-nowrap underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-brand"
-                  >
-                    {client.label} docs
-                  </a>
-                </span>
-              </p>
-            </div>
+        <div class="flex flex-col justify-between gap-3 border-b border-rule pb-3 sm:flex-row sm:items-center">
+          <div class="flex flex-wrap items-center gap-3">
+            <h2 id="install-heading" class="font-mono text-[11px] tracking-wide text-dim uppercase">
+              Target client
+            </h2>
+            <.segmented
+              options={@clients}
+              selected={@selected_client}
+              event="select_client"
+              param="client"
+              label="Target client"
+            />
           </div>
+
+          <p class="flex min-w-0 items-center gap-1.5 font-mono text-[11px] text-dim">
+            <.icon
+              name={
+                if current_client(assigns).kind == :cli,
+                  do: "hero-command-line",
+                  else: "hero-code-bracket"
+              }
+              class="size-3.5 shrink-0"
+            />
+            <span class="truncate" title={current_client(assigns).path}>
+              {current_client(assigns).path}
+            </span>
+          </p>
         </div>
 
-        <script :type={Phoenix.LiveView.ColocatedHook} name=".ClientTabs">
-          export default {
-            mounted() {
-              const COOKIE = "mcp_client"
+        <%!-- Live secret injector. Each declared variable gets its own field and
+              is substituted into the snippet as you type, so the block is
+              copy-and-run rather than copy-then-edit. --%>
+        <form
+          :if={@secrets != %{} and current_client(assigns).accepts_secrets}
+          phx-change="update_secrets"
+          class="flex flex-col gap-2"
+        >
+          <div
+            :for={var <- @server.env_vars}
+            class="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3"
+          >
+            <label
+              for={"secret-#{var}"}
+              class="shrink-0 font-mono text-[11px] text-accent sm:w-56 sm:truncate"
+              title={var}
+            >
+              {var}
+            </label>
+            <input
+              type="password"
+              id={"secret-#{var}"}
+              name={"secrets[#{var}]"}
+              value={@secrets[var]}
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="paste to fill the snippet below"
+              class="w-full min-w-0 rounded-field border border-rule bg-canvas px-3 py-1.5 font-mono text-xs text-ink outline-none transition-colors placeholder:text-dim hover:border-rule-strong focus:border-brand"
+            />
+          </div>
+          <p class="text-[11px] text-dim">
+            Held in this page only — never stored, logged, or sent anywhere but back to your screen.
+          </p>
+        </form>
 
-              const saved = document.cookie
-                .split("; ")
-                .find(row => row.startsWith(COOKIE + "="))
-                ?.split("=")[1]
-
-              if (saved) {
-                const radio = this.el.querySelector(`input[value="${CSS.escape(decodeURIComponent(saved))}"]`)
-                if (radio) radio.checked = true
-              }
-
-              this.el.addEventListener("change", e => {
-                if (e.target.matches('input[type="radio"]')) {
-                  document.cookie = `${COOKIE}=${encodeURIComponent(e.target.value)}; path=/; max-age=31536000; SameSite=Lax`
-                }
-              })
-            }
+        <.code_block
+          id="client-config"
+          code={rendered_config(assigns)}
+          copy_label={
+            if current_client(assigns).kind == :cli, do: "Copy command", else: "Copy config"
           }
-        </script>
+          max_height="max-h-96"
+        />
+
+        <p
+          :if={current_client(assigns).note}
+          class="flex items-start gap-1.5 text-xs text-pretty text-dim"
+        >
+          <.icon name="hero-information-circle" class="mt-px size-3.5 shrink-0" />
+          <span>
+            {current_client(assigns).note}
+            <a
+              href={current_client(assigns).docs_url}
+              rel="nofollow noopener"
+              class="whitespace-nowrap underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-brand"
+            >
+              {current_client(assigns).label} docs
+            </a>
+          </span>
+        </p>
       </section>
 
       <p
@@ -289,102 +314,105 @@ defmodule McpRegistryWeb.ServerLive.Show do
         ready-made client configuration. See the repository or website for setup instructions.
       </p>
 
-      <%!-- --- Capabilities and metadata ------------------------------------- --%>
+      <%!-- --- Capabilities and specs ---------------------------------------- --%>
       <div class="grid gap-8 lg:grid-cols-12">
         <div class="min-w-0 space-y-6 lg:col-span-8">
-          <div id="capabilities" phx-update="ignore" phx-hook=".ToolFilter">
-            <div class="flex flex-wrap items-center gap-x-4 border-b border-rule">
-              <h2 class="-mb-px border-b-2 border-brand pb-2 text-sm font-medium text-brand">
-                Tools <span data-tool-count>{length(@server.tools)}</span>
-                <span :if={@server.tools != []} class="text-dim">/ {length(@server.tools)}</span>
-              </h2>
-            </div>
+          <div class="flex gap-6 overflow-x-auto border-b border-rule">
+            <.tab_button tab="tools" current={@active_tab} event="select_tab">
+              Tools ({length(@tools)})
+            </.tab_button>
+            <.tab_button tab="environment" current={@active_tab} event="select_tab">
+              Environment ({length(@server.env_vars)})
+            </.tab_button>
+            <.tab_button tab="manifest" current={@active_tab} event="select_tab">
+              server.json
+            </.tab_button>
+          </div>
 
-            <div :if={@server.tools != []} class="mt-4 space-y-3">
-              <label for="tool-filter" class="sr-only">Filter tools</label>
+          <%!-- Tools --%>
+          <div :if={@active_tab == "tools"} class="space-y-3">
+            <form :if={@tools != []} phx-change="filter_tools" phx-submit="filter_tools">
+              <label for="tool-query" class="sr-only">Filter tools</label>
               <input
-                id="tool-filter"
-                type="search"
-                data-tool-filter
+                type="text"
+                id="tool-query"
+                name="query"
+                value={@tool_query}
+                phx-debounce="150"
                 autocomplete="off"
                 placeholder="Filter tools by name…"
-                class="w-full rounded-field border border-rule bg-surface px-3.5 py-2 font-mono text-xs text-ink outline-none transition-colors placeholder:text-dim hover:border-rule-strong focus:border-brand [&::-webkit-search-cancel-button]:hidden"
+                class="w-full rounded-field border border-rule bg-surface px-3.5 py-2 font-mono text-xs text-ink outline-none transition-colors placeholder:text-dim hover:border-rule-strong focus:border-brand"
               />
+            </form>
 
-              <ul class="grid gap-2 sm:grid-cols-2">
-                <li
-                  :for={tool <- @server.tools}
-                  data-tool={String.downcase(tool)}
-                  class="group/tool flex items-center justify-between gap-2 rounded-field border border-rule bg-surface/40 px-3 py-2 transition-colors hover:border-rule-strong hover:bg-surface"
-                >
-                  <code class="min-w-0 truncate font-mono text-xs font-medium text-brand" title={tool}>
-                    {tool}
+            <div class="grid gap-2.5 sm:grid-cols-2">
+              <article
+                :for={tool <- filtered_tools(@tools, @tool_query)}
+                class="space-y-1.5 rounded-box border border-rule bg-surface/40 p-3.5 transition-colors hover:border-rule-strong hover:bg-surface"
+              >
+                <div class="flex items-start justify-between gap-2">
+                  <code class="min-w-0 font-mono text-xs font-semibold break-all text-brand">
+                    {tool.name}
                   </code>
-                  <.badge :if={tool_kind(tool) == :mutating} tone="warning" class="shrink-0">
-                    writes
-                  </.badge>
-                  <.badge :if={tool_kind(tool) == :readonly} tone="success" class="shrink-0">
-                    reads
-                  </.badge>
-                </li>
-              </ul>
-
-              <p data-tool-empty hidden class="py-6 text-center text-sm text-dim">
-                No tool matches that filter.
-              </p>
-
-              <p class="text-xs text-pretty text-dim">
-                <b class="font-medium text-ink">reads</b>
-                and <b class="font-medium text-ink">writes</b>
-                are inferred from each tool's name, not from its schema — treat them as a hint and
-                check the server's own documentation before granting access.
-              </p>
+                  <.badge :if={tool.kind == :mutating} tone="warning">Mutating</.badge>
+                  <.badge :if={tool.kind == :readonly} tone="success">Read-only</.badge>
+                </div>
+                <p class="text-[11px] text-dim">{tool.gloss}</p>
+              </article>
             </div>
 
-            <p :if={@server.tools == []} class="mt-4 text-sm text-pretty text-dim">
+            <p
+              :if={@tools != [] and filtered_tools(@tools, @tool_query) == []}
+              class="rounded-box border border-dashed border-rule py-10 text-center text-xs text-dim"
+            >
+              No tool matches "{@tool_query}".
+            </p>
+
+            <p :if={@tools == []} class="text-sm text-pretty text-dim">
               This listing does not declare its tools. Connect the server and your client will
               discover them on the handshake.
             </p>
+
+            <p :if={@tools != []} class="text-[11px] text-pretty text-dim">
+              <b class="font-medium text-ink">Mutating</b>
+              and <b class="font-medium text-ink">Read-only</b>
+              are read off each tool's name, not its schema — a hint, not a guarantee. Check the
+              server's own documentation before granting access.
+            </p>
           </div>
 
-          <script :type={Phoenix.LiveView.ColocatedHook} name=".ToolFilter">
-            export default {
-              mounted() {
-                const input = this.el.querySelector("input[data-tool-filter]")
-                if (!input) return
-
-                const rows = Array.from(this.el.querySelectorAll("[data-tool]"))
-                const count = this.el.querySelector("[data-tool-count]")
-                const empty = this.el.querySelector("[data-tool-empty]")
-
-                input.addEventListener("input", () => {
-                  const q = input.value.trim().toLowerCase()
-                  let shown = 0
-
-                  for (const row of rows) {
-                    const match = !q || row.dataset.tool.includes(q)
-                    row.hidden = !match
-                    if (match) shown++
-                  }
-
-                  if (count) count.textContent = shown
-                  if (empty) empty.hidden = shown > 0
-                })
-              }
-            }
-          </script>
-
-          <details class="group/manifest overflow-hidden rounded-box border border-rule">
-            <summary class="flex cursor-pointer items-center gap-2 px-4 py-3 font-mono text-[11px] tracking-wide text-dim uppercase transition-colors hover:text-ink">
-              <.icon
-                name="hero-chevron-right-micro"
-                class="size-3.5 transition-transform duration-200 group-open/manifest:rotate-90"
-              /> server.json manifest
-            </summary>
-            <div class="border-t border-rule">
-              <pre class="scroll-thin overflow-x-auto bg-sunken p-4 font-mono text-xs leading-relaxed"><code>{@manifest}</code></pre>
+          <%!-- Environment --%>
+          <div :if={@active_tab == "environment"} class="space-y-3">
+            <div :if={@server.env_vars != []} class="space-y-2">
+              <p class="text-sm text-pretty text-dim">
+                This server will not start until these are set. Fill them in above and every snippet
+                on this page is rewritten to match.
+              </p>
+              <ul class="grid gap-2 sm:grid-cols-2">
+                <li
+                  :for={var <- @server.env_vars}
+                  class="flex items-center gap-2 rounded-field border border-rule bg-surface/40 px-3 py-2"
+                >
+                  <.icon name="hero-shield-check" class="size-3.5 shrink-0 text-accent" />
+                  <code class="min-w-0 font-mono text-[11px] break-all text-accent">{var}</code>
+                </li>
+              </ul>
             </div>
-          </details>
+
+            <p :if={@server.env_vars == []} class="text-sm text-pretty text-dim">
+              This server declares no environment variables — nothing to configure before it runs.
+            </p>
+          </div>
+
+          <%!-- Manifest --%>
+          <div :if={@active_tab == "manifest"}>
+            <.code_block
+              id="manifest-block"
+              code={@manifest}
+              copy_label="Copy JSON"
+              max_height="max-h-[32rem]"
+            />
+          </div>
 
           <section
             :if={@article_html}
@@ -414,7 +442,6 @@ defmodule McpRegistryWeb.ServerLive.Show do
             <div class="shimmer h-3 w-40 rounded-field"></div>
             <div class="shimmer h-3 w-full rounded-field"></div>
             <div class="shimmer h-3 w-11/12 rounded-field"></div>
-            <div class="shimmer h-3 w-4/5 rounded-field"></div>
             <div class="shimmer h-24 w-full rounded-box"></div>
           </section>
 
@@ -426,45 +453,57 @@ defmodule McpRegistryWeb.ServerLive.Show do
           </section>
         </div>
 
-        <aside class="min-w-0 space-y-6 self-start lg:col-span-4 lg:sticky lg:top-32">
-          <section
+        <aside class="min-w-0 space-y-6 self-start lg:sticky lg:top-32 lg:col-span-4">
+          <.panel
             :if={@server.env_vars != []}
-            aria-labelledby="secrets-heading"
-            class="space-y-3 rounded-box border border-rule bg-surface/30 p-4"
+            title="Secrets and scopes"
+            icon="hero-shield-check"
           >
-            <h2
-              id="secrets-heading"
-              class="flex items-center gap-2 font-mono text-[11px] tracking-wide text-dim uppercase"
-            >
-              <.icon name="hero-shield-check" class="size-3.5 text-brand" /> Secrets and environment
-            </h2>
             <p class="text-xs text-pretty text-dim">
-              This server will not start until these are set. The snippets above leave each one as a
-              placeholder for you to fill in.
+              The registry records which variables this server needs, not what privileges they must
+              carry. Issue each one with the narrowest scope that works.
             </p>
             <ul class="space-y-1.5">
-              <li :for={var <- @server.env_vars} class="flex items-start gap-2">
-                <span class="mt-1.5 size-1 shrink-0 rounded-full bg-accent" aria-hidden="true"></span>
-                <code class="font-mono text-[11px] break-all text-accent">{var}</code>
+              <li :for={var <- @server.env_vars} class="flex items-center gap-2">
+                <span class="size-1 shrink-0 rounded-full bg-brand" aria-hidden="true"></span>
+                <code class="font-mono text-[11px] break-all text-brand">{var}</code>
               </li>
             </ul>
-          </section>
+          </.panel>
 
-          <section
+          <.panel title="Runtime" icon="hero-cpu-chip">
+            <div>
+              <.spec_row label="Transport" value={@server.transport} tone="brand" />
+              <.spec_row
+                :if={@server.package_registry}
+                label="Registry"
+                value={@server.package_registry}
+              />
+              <.spec_row
+                :if={@server.package_identifier}
+                label="Package"
+                value={@server.package_identifier}
+              />
+              <.spec_row :if={@server.license} label="License" value={@server.license} />
+              <.spec_row label="Version" value={@server.version} />
+              <.spec_row
+                label="Provenance"
+                value={if @server.synced_at, do: "Official registry", else: "Community"}
+                tone={if @server.synced_at, do: "success", else: "dim"}
+              />
+            </div>
+          </.panel>
+
+          <.panel
             :if={@package_manager_options != []}
-            aria-labelledby="integration-heading"
-            class="space-y-2"
+            title="Package managers"
+            icon="hero-cube-transparent"
           >
-            <h2
-              id="integration-heading"
-              class="font-mono text-[11px] tracking-wide text-dim uppercase"
-            >
-              Package managers
-            </h2>
-
-            <%!-- Same CSS-only tab mechanism as the install hub above. --%>
             <div id="pkg-manager-integration" phx-update="ignore" phx-hook=".PkgManagerTabs">
-              <div class="relative flex flex-wrap items-center gap-1.5 rounded-box border border-rule bg-surface/60 p-2">
+              <%!-- CSS-only tabs: radios, labels and panels must be DIRECT
+                    siblings, because Tailwind's peer variants compile to a
+                    sibling combinator. --%>
+              <div class="relative flex flex-wrap items-center gap-1.5">
                 <input
                   :for={{opt, index} <- Enum.with_index(@package_manager_options)}
                   type="radio"
@@ -503,12 +542,11 @@ defmodule McpRegistryWeb.ServerLive.Show do
                 mounted() {
                   const COOKIE = "pkg_manager"
 
-                  const read = () => document.cookie
+                  const saved = document.cookie
                     .split("; ")
                     .find(row => row.startsWith(COOKIE + "="))
                     ?.split("=")[1]
 
-                  const saved = read()
                   if (saved) {
                     const radio = this.el.querySelector(`input[value="${CSS.escape(decodeURIComponent(saved))}"]`)
                     if (radio) radio.checked = true
@@ -522,12 +560,9 @@ defmodule McpRegistryWeb.ServerLive.Show do
                 }
               }
             </script>
-          </section>
+          </.panel>
 
-          <section :if={@server.tags != []} aria-labelledby="tags-heading" class="space-y-2">
-            <h2 id="tags-heading" class="font-mono text-[11px] tracking-wide text-dim uppercase">
-              Tags
-            </h2>
+          <.panel :if={@server.tags != []} title="Tags" icon="hero-funnel">
             <ul class="flex flex-wrap gap-1.5">
               <li :for={tag <- @server.tags}>
                 <.link
@@ -538,61 +573,72 @@ defmodule McpRegistryWeb.ServerLive.Show do
                 </.link>
               </li>
             </ul>
-          </section>
+          </.panel>
 
-          <section aria-labelledby="details-heading" class="space-y-2">
-            <h2 id="details-heading" class="font-mono text-[11px] tracking-wide text-dim uppercase">
-              Registry record
-            </h2>
-
-            <.list>
-              <:item title="Transport">{@server.transport}</:item>
-              <:item :if={@server.remote_url} title="Endpoint">
+          <.panel title="Registry record" icon="hero-server-stack">
+            <div>
+              <.spec_row :if={@server.remote_url} label="Endpoint">
                 <a href={@server.remote_url} class={meta_link_class()} rel="nofollow ugc noopener">
                   {@server.remote_url}
                 </a>
-              </:item>
-              <:item :if={@server.package_identifier} title="Package">
-                <span class="text-dim">{@server.package_registry}</span>
-                <code class="break-all">{@server.package_identifier}</code>
-              </:item>
-              <:item :if={@server.repository_url} title="Repository">
+              </.spec_row>
+              <.spec_row :if={@server.repository_url} label="Repository">
                 <a href={@server.repository_url} class={meta_link_class()} rel="nofollow ugc noopener">
                   {@server.repository_url}
                 </a>
-              </:item>
-              <:item :if={@server.website_url} title="Website">
-                <a href={@server.website_url} class={meta_link_class()} rel="nofollow ugc noopener">
-                  {@server.website_url}
-                </a>
-              </:item>
-              <:item :if={@website_title} title="Website title">{@website_title}</:item>
-              <:item :if={@website_description} title="Website description">
-                <span class="text-pretty text-dim">{@website_description}</span>
-              </:item>
-              <:item :if={@server.license} title="License">{@server.license}</:item>
-              <:item :if={@server.synced_at} title="Official registry">
+              </.spec_row>
+              <.spec_row :if={@website_title} label="Site title" value={@website_title} />
+              <.spec_row :if={@server.synced_at} label="Synced">
                 <a href={@official_url} class={meta_link_class()} rel="noopener">
-                  Listed{synced_phrase(@server.synced_at)}
+                  {synced_phrase(@server.synced_at)}
                 </a>
-              </:item>
-              <:item title="API">
-                <a href={api_server_path(@server)} class={[meta_link_class(), "font-mono text-xs"]}>
+              </.spec_row>
+              <.spec_row label="JSON API">
+                <a href={api_server_path(@server)} class={meta_link_class()}>
                   {api_server_path(@server)}
                 </a>
-              </:item>
-            </.list>
-          </section>
+              </.spec_row>
+            </div>
+          </.panel>
         </aside>
       </div>
     </Layouts.app>
     """
   end
 
+  # --- Client switching ------------------------------------------------------
+
+  defp default_client([first | _]), do: first.id
+  defp default_client(_), do: nil
+
+  defp current_client(%{clients: clients, selected_client: id}) do
+    Enum.find(clients, List.first(clients), &(&1.id == id))
+  end
+
+  # Substitution happens at render time rather than in `Clients`, so the module
+  # stays a pure description of each client's shape and the secret never leaves
+  # this process.
+  defp rendered_config(assigns) do
+    client = current_client(assigns)
+
+    if client.accepts_secrets do
+      Enum.reduce(assigns.secrets, client.code, fn {var, value}, code ->
+        case String.trim(value) do
+          "" -> code
+          filled -> String.replace(code, "<#{var}>", filled)
+        end
+      end)
+    else
+      client.code
+    end
+  end
+
+  # --- Tools -----------------------------------------------------------------
+
   # A tool's name is the only thing the registry stores about it -- there are no
-  # schemas here -- so read/write is inferred from the leading verb and shown as
-  # a hint, with the page saying so. An unrecognised verb gets no badge rather
-  # than a guess.
+  # schemas here -- so the badge is read off the leading verb and the gloss is
+  # the name itself, punctuation removed. Neither invents information; an
+  # unrecognised verb simply gets no badge.
   @mutating_verbs ~w(create update delete remove write set add insert put patch
                      send post publish merge push upload move rename execute run
                      start stop restart cancel close edit append clear reset
@@ -600,14 +646,16 @@ defmodule McpRegistryWeb.ServerLive.Show do
 
   @readonly_verbs ~w(get list search read fetch find query describe show view
                      lookup count check resolve inspect export download browse
-                     status has is)
+                     status)
+
+  defp decorate_tools(tools) do
+    Enum.map(tools, fn tool ->
+      %{name: tool, kind: tool_kind(tool), gloss: gloss(tool)}
+    end)
+  end
 
   defp tool_kind(tool) do
-    verb =
-      tool
-      |> String.downcase()
-      |> String.split(~r/[^a-z0-9]+/, trim: true)
-      |> List.first()
+    verb = tool |> String.downcase() |> String.split(~r/[^a-z0-9]+/, trim: true) |> List.first()
 
     cond do
       verb in @mutating_verbs -> :mutating
@@ -616,15 +664,22 @@ defmodule McpRegistryWeb.ServerLive.Show do
     end
   end
 
-  # The radio is sr-only, so its focus ring has to be drawn on the label.
-  defp client_tab_class(id) do
-    [
-      "cursor-pointer rounded-[0.3125rem] px-3 py-1 font-mono text-xs transition-colors duration-200",
-      "text-dim hover:text-ink",
-      "peer-focus-visible/#{id}:ring-2 peer-focus-visible/#{id}:ring-brand",
-      "peer-checked/#{id}:bg-surface peer-checked/#{id}:text-ink peer-checked/#{id}:shadow-sm"
-    ]
+  defp gloss(tool) do
+    tool
+    |> String.replace(~r/[_\-.]+/, " ")
+    |> String.replace(~r/([a-z0-9])([A-Z])/, "\\1 \\2")
+    |> String.downcase()
+    |> String.trim()
   end
+
+  defp filtered_tools(tools, query) do
+    case query |> to_string() |> String.trim() |> String.downcase() do
+      "" -> tools
+      q -> Enum.filter(tools, &String.contains?(String.downcase(&1.name), q))
+    end
+  end
+
+  # --- Presentation helpers --------------------------------------------------
 
   defp tab_label_class(%{id: id, available: available}) do
     [
@@ -663,15 +718,12 @@ defmodule McpRegistryWeb.ServerLive.Show do
   defp synced_phrase(%DateTime{} = at) do
     minutes = max(DateTime.diff(DateTime.utc_now(), at, :minute), 0)
 
-    ago =
-      cond do
-        minutes < 1 -> "just now"
-        minutes < 60 -> "#{minutes} min ago"
-        minutes < 48 * 60 -> "#{div(minutes, 60)} h ago"
-        true -> "#{div(minutes, 1440)} days ago"
-      end
-
-    ", synced #{ago}"
+    cond do
+      minutes < 1 -> "just now"
+      minutes < 60 -> "#{minutes} min ago"
+      minutes < 48 * 60 -> "#{div(minutes, 60)} h ago"
+      true -> "#{div(minutes, 1440)} days ago"
+    end
   end
 
   defp markdown_to_html(markdown) when is_binary(markdown) do
