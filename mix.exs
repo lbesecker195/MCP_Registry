@@ -66,6 +66,10 @@ defmodule McpRegistry.MixProject do
        app: false,
        compile: false,
        depth: 1},
+      # City-level IP geolocation, for McpRegistryWeb.Plugs.GeoBlock. Locus
+      # downloads and refreshes the MaxMind database itself, so there is no
+      # .mmdb file to ship or cron job to write.
+      {:locus, "~> 2.3"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},

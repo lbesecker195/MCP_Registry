@@ -49,6 +49,19 @@ if config_env() in [:dev, :prod] do
   end
 end
 
+# --- Geo blocking ------------------------------------------------------------
+# Cities refused at the endpoint, before anything else runs. Every rule key has
+# to match, because a city name alone is not unique.
+#
+# MAXMIND_LICENSE_KEY is what turns this on. Without it the database is never
+# loaded and the block is inert -- deliberately, so a missing key degrades to
+# "everyone is allowed" rather than taking the site down. Get a free key at
+# https://www.maxmind.com/en/geolite2/signup
+config :mcp_registry, :geo_block,
+  loader: :geoip_city,
+  license_key: System.get_env("MAXMIND_LICENSE_KEY"),
+  cities: [%{city: "Mountain View", subdivision: "CA", country: "US"}]
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :mcp_registry, McpRegistryWeb.Endpoint,

@@ -42,6 +42,10 @@ defmodule McpRegistryWeb.Endpoint do
 
   plug Plug.RequestId
   plug McpRegistryWeb.Plugs.ClientIP
+  # Immediately after ClientIP, so the lookup sees the real client rather than
+  # nginx, and before parsing or the session, so a blocked request costs almost
+  # nothing. This covers the API and the MCP endpoint too, not just pages.
+  plug McpRegistryWeb.Plugs.GeoBlock
 
   # Server-side analytics, on the same account the browser tag uses. Placed
   # after ClientIP so the visitor's address is the corrected one rather than
