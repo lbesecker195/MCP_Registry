@@ -166,6 +166,10 @@ defmodule McpRegistry.OfficialRegistry do
       )
     )
 
+    # A sync rewrites listings in bulk, so the cached catalogue figures are
+    # dropped once here rather than per row.
+    McpRegistry.Registry.invalidate_cache()
+
     Analytics.track(:registry_synced, Map.merge(%{mode: mode, outcome: status}, stats))
     Logger.info("Official registry sync #{status} (#{mode}): #{inspect(stats)}")
 
