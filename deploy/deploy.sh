@@ -22,6 +22,21 @@ set -a; . "$here/.env"; set +a
 : "${MCP_REGISTRY_LICENSE_KEY:?set MCP_REGISTRY_LICENSE_KEY in deploy/.env}"
 app_port="${APP_PORT:-4610}"
 
+# This script rewrites /etc/mcp-registry.env wholesale, so anything set on the
+# server and not set here is blanked. CI deploys only read that file, which is
+# why a value can sit there working for months and then vanish the first time
+# somebody runs this script instead.
+#
+# Analytics is the one that bites: with no account id the tag and the plug both
+# no-op silently, so the site keeps working and simply stops being measured.
+# Carry forward whatever the host already has unless this run says otherwise.
+carry_over() {
+  ssh "$target" "sed -n 's/^$1=//p' /etc/mcp-registry.env 2>/dev/null" 2>/dev/null || true
+}
+
+SSA_ACCOUNT_ID="${SSA_ACCOUNT_ID:-$(carry_over SSA_ACCOUNT_ID)}"
+REGISTRY_PUBLISH_TOKEN="${REGISTRY_PUBLISH_TOKEN:-$(carry_over REGISTRY_PUBLISH_TOKEN)}"
+
 echo "==> Building release"
 tarball=$("$here/build-release.sh")
 

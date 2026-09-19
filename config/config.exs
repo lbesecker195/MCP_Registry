@@ -57,6 +57,11 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# The install hub on /servers/* lets you type a real API token in to have it
+# substituted into the snippet. That value rides a LiveView event, so keep it
+# out of the logs.
+config :phoenix, :filter_parameters, ["password", "secret", "secrets", "token"]
+
 # Seriously Simple Analytics (https://seriouslysimpleanalytics.com).
 # One account ID drives both the browser tag in the root layout and the
 # server-side pings in McpRegistry.Analytics. Set SSA_ACCOUNT_ID at runtime;

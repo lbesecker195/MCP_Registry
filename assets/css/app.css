@@ -1,105 +1,359 @@
-/* See the Tailwind configuration guide for advanced usage
-   https://tailwindcss.com/docs/configuration */
+/* ---------------------------------------------------------------------------
+   MCP Harbor -- base stylesheet.
 
-@import "tailwindcss" source(none);
-@import "phoenix-colocated/mcp_registry/colocated.css";
-@source "../css";
-@source "../js";
-@source "../../lib/mcp_registry_web";
-/* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
-@source "../../_build/dev/phoenix-colocated/mcp_registry/*/";
+   Tailwind itself is loaded from the CDN in root.html.heex, which means utility
+   classes do not exist until that script has parsed the document. Everything in
+   this file is therefore plain CSS with no Tailwind directives, and it is
+   deliberately the first stylesheet in <head>: it paints the canvas, the text
+   colour and the font before Tailwind arrives, so a dark-mode visitor never
+   sees a white flash.
 
-/* A Tailwind plugin that makes "hero-#{ICON}" classes available.
-   The heroicons installation itself is managed by your mix.exs */
-@plugin "../vendor/heroicons";
+   The design tokens live here (not in the @theme block) for the same reason.
+   root.html.heex re-exports them to Tailwind through `@theme inline`, so
+   `bg-canvas` resolves to `var(--canvas)` at runtime and re-resolves when
+   data-theme flips -- one source of truth, both themes.
+   --------------------------------------------------------------------------- */
 
-/* daisyUI Tailwind Plugin. */
-@plugin "daisyui/packages/bundle/daisyui" {
-  themes: false;
+/* The palette is a cool blue-grey stack with a cyan brand and an amber accent.
+   Dark is the design's home key -- the registry is a developer tool read next
+   to a terminal -- and light is a faithful transposition of the same intervals,
+   not a separate design. Both keep the same three surface levels:
+
+     --sunken   recessed: code blocks, inset panels
+     --canvas   the page
+     --surface  raised: cards, the header, controls
+
+   In dark, sunken sits *below* canvas; in light it sits above. That inversion
+   is deliberate -- recessed reads as darker on a dark page and as tinted on a
+   light one. */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --canvas: oklch(99% 0.003 250);
+  --surface: oklch(97.2% 0.005 250);
+  --sunken: oklch(95.2% 0.008 253);
+  --ink: oklch(21% 0.028 258);
+  --dim: oklch(21% 0.028 258 / 0.66);
+  --rule: oklch(21% 0.028 258 / 0.13);
+  --rule-strong: oklch(21% 0.028 258 / 0.26);
+
+  --brand: oklch(52% 0.115 217);
+  --brand-ink: oklch(99% 0.008 217);
+  --accent: oklch(52% 0.13 62);
+  --accent-ink: oklch(99% 0.01 62);
+
+  --success: oklch(48% 0.115 160);
+  --warning: oklch(51% 0.125 76);
+  --danger: oklch(52% 0.19 25);
+
+  --glow: oklch(52% 0.115 217 / 0.1);
+  --beam: oklch(52% 0.13 62 / 0.06);
 }
 
-/* daisyUI theme plugin.
-  We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
-  on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
-@plugin "daisyui/packages/bundle/daisyui-theme" {
-  name: "dark";
-  default: false;
-  prefersdark: true;
-  color-scheme: "dark";
-  --color-base-100: oklch(30.33% 0.016 252.42);
-  --color-base-200: oklch(25.26% 0.014 253.1);
-  --color-base-300: oklch(20.15% 0.012 254.09);
-  --color-base-content: oklch(97.807% 0.029 256.847);
-  --color-primary: oklch(58% 0.233 277.117);
-  --color-primary-content: oklch(96% 0.018 272.314);
-  --color-secondary: oklch(58% 0.233 277.117);
-  --color-secondary-content: oklch(96% 0.018 272.314);
-  --color-accent: oklch(60% 0.25 292.717);
-  --color-accent-content: oklch(96% 0.016 293.756);
-  --color-neutral: oklch(37% 0.044 257.287);
-  --color-neutral-content: oklch(98% 0.003 247.858);
-  --color-info: oklch(58% 0.158 241.966);
-  --color-info-content: oklch(97% 0.013 236.62);
-  --color-success: oklch(60% 0.118 184.704);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.21875rem;
-  --size-field: 0.21875rem;
-  --border: 1.5px;
-  --depth: 1;
-  --noise: 0;
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --canvas: oklch(13.2% 0.032 264);
+  --surface: oklch(20.4% 0.038 264);
+  --sunken: oklch(10.5% 0.028 264);
+  --ink: oklch(96.5% 0.008 250);
+  --dim: oklch(96.5% 0.008 250 / 0.64);
+  --rule: oklch(100% 0 0 / 0.11);
+  --rule-strong: oklch(100% 0 0 / 0.22);
+
+  --brand: oklch(79% 0.152 211);
+  --brand-ink: oklch(14% 0.032 250);
+  --accent: oklch(83% 0.172 84);
+  --accent-ink: oklch(16% 0.035 84);
+
+  --success: oklch(77% 0.168 163);
+  --warning: oklch(83% 0.172 84);
+  --danger: oklch(71% 0.175 20);
+
+  --glow: oklch(79% 0.152 211 / 0.13);
+  --beam: oklch(83% 0.172 84 / 0.07);
 }
 
-@plugin "daisyui/packages/bundle/daisyui-theme" {
-  name: "light";
-  default: true;
-  prefersdark: false;
-  color-scheme: "light";
-  --color-base-100: oklch(98% 0 0);
-  --color-base-200: oklch(96% 0.001 286.375);
-  --color-base-300: oklch(92% 0.004 286.32);
-  --color-base-content: oklch(21% 0.006 285.885);
-  --color-primary: oklch(70% 0.213 47.604);
-  --color-primary-content: oklch(98% 0.016 73.684);
-  --color-secondary: oklch(55% 0.027 264.364);
-  --color-secondary-content: oklch(98% 0.002 247.839);
-  --color-accent: oklch(0% 0 0);
-  --color-accent-content: oklch(100% 0 0);
-  --color-neutral: oklch(44% 0.017 285.786);
-  --color-neutral-content: oklch(98% 0 0);
-  --color-info: oklch(62% 0.214 259.815);
-  --color-info-content: oklch(97% 0.014 254.604);
-  --color-success: oklch(70% 0.14 182.503);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.21875rem;
-  --size-field: 0.21875rem;
-  --border: 1.5px;
-  --depth: 1;
-  --noise: 0;
+/* --- Pre-Tailwind paint ---------------------------------------------------
+   Only what is needed to make the first frame correct. Everything else waits
+   for the utilities. */
+
+html {
+  background-color: var(--canvas);
+  color: var(--ink);
+  -webkit-text-size-adjust: 100%;
 }
 
-/* Add variants based on LiveView classes */
-@custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
-@custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
-@custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+body {
+  margin: 0;
+  background-color: var(--canvas);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+  /* Counts re-render on every keystroke in the catalogue search (debounced at
+     250ms) and proportional digits visibly jitter as the number changes. */
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
 
-/* Use the data attribute for dark mode  */
-@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+/* Identifiers and commands are the content of this site. Ligatures turn `->`
+   and `!=` into glyphs that no longer match what you typed. */
+code,
+pre,
+kbd,
+samp {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  font-variant-ligatures: none;
+}
 
-/* Make LiveView wrapper divs transparent for layout */
-[data-phx-session], [data-phx-teleported-src] { display: contents }
+/* The tool filter hides rows with the `hidden` attribute, which a display
+   utility on the same element would otherwise win against. */
+[hidden] {
+  display: none !important;
+}
 
-/* This file is for your main application CSS */
+/* Make LiveView wrapper divs transparent for layout. */
+[data-phx-session],
+[data-phx-teleported-src] {
+  display: contents;
+}
+
+/* One visible, consistent focus ring. Keyboard users navigate this site. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+/* --- Components Tailwind utilities cannot express -------------------------- */
+
+/* Shell prompt gutter for runnable commands. The glyph lives in ::before and is
+   unselectable, so copying the block yields a command you can actually paste --
+   no stray `$`. */
+.cmd {
+  position: relative;
+  padding-left: 1.75rem;
+}
+
+.cmd::before {
+  content: "$";
+  position: absolute;
+  left: 0.75rem;
+  color: var(--brand);
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+}
+
+/* Hairline-divided rows: the catalogue reads as a catalogue, not a wall of
+   tiles. Drawn with --rule so it survives the theme toggle. */
+.rule-list > * + * {
+  border-top: 1px solid var(--rule);
+}
+
+/* Monogram tile. A directory of 31,000 servers is easier to scan when each
+   listing has a stable visual identity, so the hue comes from a hash of the
+   server's name, passed in as --mono-h. Chroma and lightness are fixed, which
+   keeps every tile at the same contrast no matter which hue it draws, and the
+   two themes get their own lightness pair. This is the one place a colour is
+   computed rather than taken from a token -- the tokens cannot express "a
+   different hue per row". */
+.monogram {
+  --mono-c: 0.058;
+  background-color: oklch(96% var(--mono-c) var(--mono-h, 250));
+  border-color: oklch(78% calc(var(--mono-c) * 1.5) var(--mono-h, 250));
+  color: oklch(42% calc(var(--mono-c) * 2.2) var(--mono-h, 250));
+}
+
+[data-theme="dark"] .monogram {
+  background-color: oklch(26% var(--mono-c) var(--mono-h, 250));
+  border-color: oklch(40% calc(var(--mono-c) * 1.4) var(--mono-h, 250));
+  color: oklch(86% calc(var(--mono-c) * 1.8) var(--mono-h, 250));
+}
+
+/* Placeholders inside a generated config -- the token or key the reader has to
+   replace before the snippet works. Highlighted rather than merely coloured, so
+   it still reads as "fill this in" for anyone who cannot see the hue. */
+.placeholder {
+  color: var(--accent);
+  font-weight: 600;
+  background-color: color-mix(in oklab, var(--accent) 12%, transparent);
+  border-radius: 0.1875rem;
+  padding: 0 0.15em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Code panes are the tallest scrollers on the page. The default macOS overlay
+   bar is invisible against --sunken until it moves. */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-strong) transparent;
+}
+
+.scroll-thin::-webkit-scrollbar {
+  height: 0.5rem;
+  width: 0.5rem;
+}
+
+.scroll-thin::-webkit-scrollbar-thumb {
+  background-color: var(--rule-strong);
+  border-radius: 0.25rem;
+}
+
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Remote README and generated article HTML arrive as raw markup, so it cannot
+   carry utility classes. This is the one place the site styles bare tags. */
+.richtext {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+.richtext > * + * {
+  margin-top: 0.85em;
+}
+
+.richtext h1,
+.richtext h2,
+.richtext h3,
+.richtext h4 {
+  margin-top: 1.6em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.richtext h1 { font-size: 1.35rem; }
+.richtext h2 { font-size: 1.15rem; }
+.richtext h3 { font-size: 1rem; }
+.richtext h4 { font-size: 0.9375rem; }
+
+.richtext a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: 4px;
+  transition: text-decoration-color 150ms ease;
+}
+
+.richtext a:hover {
+  text-decoration-color: var(--brand);
+}
+
+.richtext ul,
+.richtext ol {
+  padding-left: 1.25rem;
+}
+
+.richtext ul { list-style: disc; }
+.richtext ol { list-style: decimal; }
+
+.richtext li + li {
+  margin-top: 0.3em;
+}
+
+.richtext code {
+  font-size: 0.85em;
+  background-color: var(--sunken);
+  border: 1px solid var(--rule);
+  border-radius: 0.25rem;
+  padding: 0.1em 0.35em;
+}
+
+.richtext pre {
+  overflow-x: auto;
+  background-color: var(--sunken);
+  border: 1px solid var(--rule);
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.richtext pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+
+.richtext blockquote {
+  border-left: 2px solid var(--rule-strong);
+  padding-left: 1rem;
+  color: var(--dim);
+}
+
+.richtext img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+
+.richtext table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.richtext th,
+.richtext td {
+  border: 1px solid var(--rule);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+
+/* --- Motion ---------------------------------------------------------------
+   Entrances are staggered by inline --d on the element. Kept small and
+   one-shot: the page settles rather than performing. */
+
+@keyframes harbor-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: harbor-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes harbor-sweep {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Loading placeholder for README content fetched after mount. */
+.shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--surface) 25%,
+    var(--rule) 37%,
+    var(--surface) 63%
+  );
+  background-size: 400% 100%;
+  animation: harbor-sweep 1.6s ease infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
