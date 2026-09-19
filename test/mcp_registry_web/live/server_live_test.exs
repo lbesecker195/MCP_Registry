@@ -197,8 +197,27 @@ defmodule McpRegistryWeb.ServerLiveTest do
     refute html =~ "get_forecast"
   end
 
-  test "show 404s for unknown servers", %{conn: conn} do
-    assert_raise Ecto.NoResultsError, fn -> live(conn, "/servers/io.github.nobody/nothing") end
+  test "an unknown listing permanently redirects home instead of 404ing", %{conn: conn} do
+    conn = get(conn, "/servers/io.github.nobody/nothing")
+
+    assert redirected_to(conn, 301) == "/"
+  end
+
+  test "an unmatched browser URL permanently redirects home", %{conn: conn} do
+    assert redirected_to(get(conn, "/does-not-exist"), 301) == "/"
+    assert redirected_to(get(conn, "/some/deep/missing/path"), 301) == "/"
+  end
+
+  test "a real listing is still served rather than redirected", %{conn: conn} do
+    server = server_fixture()
+
+    assert conn |> get("/servers/#{server.name}") |> html_response(200) =~ server.title
+  end
+
+  test "the JSON API answers a miss with 404, not a redirect", %{conn: conn} do
+    conn = get(conn, "/api/v0/nope")
+
+    assert json_response(conn, 404)
   end
 
   test "submit form validates and creates a pending listing", %{conn: conn} do
