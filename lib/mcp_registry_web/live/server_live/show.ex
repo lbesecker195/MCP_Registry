@@ -562,6 +562,8 @@ defmodule McpRegistryWeb.ServerLive.Show do
             </script>
           </.panel>
 
+          <Layouts.sponsors />
+
           <.panel :if={@server.tags != []} title="Tags" icon="hero-funnel">
             <ul class="flex flex-wrap gap-1.5">
               <li :for={tag <- @server.tags}>

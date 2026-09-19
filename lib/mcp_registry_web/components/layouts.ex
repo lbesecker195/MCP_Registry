@@ -209,6 +209,93 @@ defmodule McpRegistryWeb.Layouts do
   end
 
   @doc """
+  The sponsored block: four square slots, two up.
+
+  Lives here rather than in `CoreComponents` because it is site chrome: it
+  belongs to the page frame, not to the listing being described, and any page
+  can drop it into a sidebar.
+
+  The book is a live affiliate link and carries `rel="sponsored"`, which is
+  what Google asks for on paid or affiliate placements — without it the link
+  reads as an editorial endorsement and puts the whole page's ranking at risk.
+  The other three are unsold placeholders and are not links at all.
+
+  ## Examples
+
+      <Layouts.sponsors />
+  """
+  attr :class, :any, default: nil
+
+  @sponsor_slots [
+    %{
+      image: "/images/Book.png",
+      alt: "Book cover — buy on Amazon",
+      href: "https://amzn.to/4cPvd4j"
+    },
+    %{image: "/images/sponsor-1.png", alt: "Sponsor slot one", href: nil},
+    %{image: "/images/sponsor-2.png", alt: "Sponsor slot two", href: nil},
+    %{image: "/images/sponsor-3.png", alt: "Sponsor slot three", href: nil}
+  ]
+
+  def sponsors(assigns) do
+    assigns = assign(assigns, :slots, @sponsor_slots)
+
+    ~H"""
+    <section
+      aria-labelledby="sponsors-heading"
+      class={["space-y-3 rounded-box border border-rule bg-surface/30 p-4", @class]}
+    >
+      <h2
+        id="sponsors-heading"
+        class="flex items-center gap-2 font-mono text-[11px] tracking-wide text-dim uppercase"
+      >
+        <.icon name="hero-sparkles" class="size-3.5 text-accent" /> Sponsored
+      </h2>
+
+      <ul class="grid grid-cols-2 gap-2">
+        <li :for={slot <- @slots}>
+          <%!-- The frame clips; the image inside it scales. Putting the
+                transform on the <img> rather than the frame means the tile
+                keeps its place in the grid and nothing reflows on hover.
+
+                If you ever check this in the console: Tailwind v4's `scale-*`
+                sets the standalone CSS `scale` property, so the hover state
+                shows up as `scale: 1.1` and `transform` stays `none`. --%>
+          <a
+            :if={slot.href}
+            href={slot.href}
+            target="_blank"
+            rel="sponsored noopener noreferrer"
+            class="group block aspect-square overflow-hidden rounded-field border border-rule bg-sunken transition-colors hover:border-brand/50"
+          >
+            <img
+              src={slot.image}
+              alt={slot.alt}
+              loading="lazy"
+              decoding="async"
+              class="size-full object-contain p-1.5 transition-transform duration-500 ease-out will-change-transform group-hover:scale-110"
+            />
+          </a>
+
+          <div
+            :if={is_nil(slot.href)}
+            class="group aspect-square overflow-hidden rounded-field border border-dashed border-rule bg-sunken transition-colors hover:border-rule-strong"
+          >
+            <img
+              src={slot.image}
+              alt={slot.alt}
+              loading="lazy"
+              decoding="async"
+              class="size-full object-contain p-1.5 transition-transform duration-500 ease-out will-change-transform group-hover:scale-110"
+            />
+          </div>
+        </li>
+      </ul>
+    </section>
+    """
+  end
+
+  @doc """
   The MCP Harbor mark: an anchor riding a waterline.
 
   Inline rather than an asset so it inherits `currentColor` and can be animated

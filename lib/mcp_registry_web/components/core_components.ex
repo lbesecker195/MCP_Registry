@@ -610,9 +610,13 @@ defmodule McpRegistryWeb.CoreComponents do
 
     ~H"""
     <div id={@id} class={["group/code relative", @class]} phx-hook=".CopyCommand">
+      <%!-- Wrapping rather than scrolling horizontally: a `claude mcp add` line
+            is long enough to run underneath the copy button otherwise, and the
+            right padding only reserves space on a line that wraps to it. --%>
       <pre class={[
-        "scroll-thin overflow-x-auto rounded-box border border-rule bg-sunken",
-        "p-4 pr-24 font-mono text-xs leading-relaxed",
+        "scroll-thin rounded-box border border-rule bg-sunken",
+        "p-4 pr-28 font-mono text-xs leading-relaxed",
+        "whitespace-pre-wrap break-words",
         @max_height && "#{@max_height} overflow-y-auto"
       ]}><code><span :for={{kind, text} <- @segments} class={if kind == :placeholder, do: "placeholder"}>{text}</span></code></pre>
       <button
