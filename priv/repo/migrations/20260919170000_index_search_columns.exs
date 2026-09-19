@@ -28,40 +28,51 @@ defmodule McpRegistry.Repo.Migrations.IndexSearchColumns do
   @disable_ddl_transaction true
   @disable_migration_lock true
 
-  def up do
-    execute "CREATE EXTENSION IF NOT EXISTS pg_trgm"
+  require Logger
 
-    # A thin IMMUTABLE wrapper so the array columns can be indexed. The
-    # separator is fixed here rather than passed in, because an index
-    # expression has to be a single fixed expression -- and because the
-    # application only ever joins on a space.
+  def up do
+    # This one is not optional and must not be wrapped: `Registry.filter_q/2`
+    # calls it, so if it is missing every search raises. Creating a function
+    # needs only CREATE on the schema, which the application's own user has by
+    # definition -- it created these tables.
     execute """
     CREATE OR REPLACE FUNCTION mcp_array_to_text(text[]) RETURNS text
       LANGUAGE sql IMMUTABLE PARALLEL SAFE
       AS $$ SELECT array_to_string($1, ' ') $$
     """
 
-    for {column, name} <- [
-          {"name", :servers_name_trgm_index},
-          {"title", :servers_title_trgm_index},
-          {"description", :servers_description_trgm_index}
-        ] do
-      create index(:servers, ["#{column} gin_trgm_ops"],
-               name: name,
-               using: :gin,
-               concurrently: true
-             )
-    end
+    # The indexes are pure optimisation, and this migration runs from the
+    # service unit's ExecStartPre -- a migration that raises means the release
+    # never starts. `pg_trgm` is a trusted extension from PostgreSQL 13, so the
+    # database owner can install it, but on an older server or a locked-down
+    # role it needs superuser. Losing an index is a slow catalogue; losing the
+    # boot is an outage. So this degrades rather than raising.
+    try do
+      repo().query!("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
-    for {column, name} <- [
-          {"tags", :servers_tags_text_trgm_index},
-          {"tools", :servers_tools_text_trgm_index}
-        ] do
-      create index(:servers, ["mcp_array_to_text(#{column}) gin_trgm_ops"],
-               name: name,
-               using: :gin,
-               concurrently: true
-             )
+      for {expression, name} <- [
+            {"name gin_trgm_ops", :servers_name_trgm_index},
+            {"title gin_trgm_ops", :servers_title_trgm_index},
+            {"description gin_trgm_ops", :servers_description_trgm_index},
+            {"mcp_array_to_text(tags) gin_trgm_ops", :servers_tags_text_trgm_index},
+            {"mcp_array_to_text(tools) gin_trgm_ops", :servers_tools_text_trgm_index}
+          ] do
+        create_if_not_exists index(:servers, [expression],
+                               name: name,
+                               using: :gin,
+                               concurrently: true
+                             )
+      end
+    rescue
+      error ->
+        Logger.warning("""
+        Trigram search indexes were not created: #{Exception.message(error)}
+
+        The catalogue still works; searches fall back to a sequential scan.
+        Install the extension as a superuser and re-run this migration:
+
+            CREATE EXTENSION IF NOT EXISTS pg_trgm;
+        """)
     end
   end
 
