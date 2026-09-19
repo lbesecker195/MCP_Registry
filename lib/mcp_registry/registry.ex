@@ -34,6 +34,17 @@ defmodule McpRegistry.Registry do
   # Names are stored lowercase; the official registry allows mixed case.
   def get_server!(name), do: Repo.get_by!(Server, name: String.downcase(name))
 
+  @doc """
+  Whether a listing exists, without loading it.
+
+  Used by `McpRegistryWeb.Plugs.KnownServer` to decide between serving the page
+  and redirecting, so it selects a constant rather than the row's columns --
+  several of which (`article_content`, `tools`) are large.
+  """
+  def server_exists?(name) when is_binary(name) do
+    Repo.exists?(from s in Server, where: s.name == ^String.downcase(name))
+  end
+
   def fetch_server(name) when is_binary(name) do
     case Repo.get_by(Server, name: String.downcase(name)) do
       nil -> {:error, :not_found}
