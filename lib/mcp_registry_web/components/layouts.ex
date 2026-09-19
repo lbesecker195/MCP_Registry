@@ -132,10 +132,7 @@ defmodule McpRegistryWeb.Layouts do
           </.footer_column>
 
           <.footer_column title="Project">
-            <:link_item href="https://github.com/lbesecker195/MCP_Registry">
-              Source on GitHub
-            </:link_item>
-            <:link_item href="https://github.com/lbesecker195/MCP_Registry/wiki">Wiki</:link_item>
+            <:link_item navigate={~p"/book"}>The book</:link_item>
             <:link_item href="https://seriouslysimpleanalytics.com">
               Seriously Simple Analytics
             </:link_item>
@@ -145,17 +142,22 @@ defmodule McpRegistryWeb.Layouts do
         <div class="mt-10 flex flex-col justify-between gap-3 border-t border-rule pt-6 font-mono text-xs text-dim sm:flex-row">
           <span>
             Copyright LoganBesecker.com 2026 &middot; Apache 2.0
-            <%!-- DB-IP's free database is CC BY 4.0; this credit is a condition
-                  of the licence, not a recommendation. Removing it means the
-                  geo data can no longer be used. --%>
-            &middot; IP data from
-            <a
-              href="https://db-ip.com"
-              rel="noopener"
-              class="underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-brand"
-            >
-              DB-IP
-            </a>
+            <%!-- DB-IP's free database is CC BY 4.0, and the credit is a
+                  condition of that licence rather than a recommendation. It is
+                  therefore tied to whether the data is actually loaded: geo
+                  blocking is off, so nothing here uses DB-IP and no credit is
+                  owed. Switch GEO_BLOCK_ENABLED on and the credit comes back
+                  by itself, which is safer than remembering to re-add it. --%>
+            <span :if={geo_data_in_use?()}>
+              &middot; IP data from
+              <a
+                href="https://db-ip.com"
+                rel="noopener"
+                class="underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-brand"
+              >
+                DB-IP
+              </a>
+            </span>
           </span>
           <span>
             Analytics by
@@ -174,6 +176,15 @@ defmodule McpRegistryWeb.Layouts do
 
     <.flash_group flash={@flash} />
     """
+  end
+
+  # True only when a geo database is actually configured to load. The DB-IP
+  # credit is a licence condition on *use* of the data, so it follows this
+  # rather than being hardcoded.
+  defp geo_data_in_use? do
+    Application.get_env(:mcp_registry, :geo_block, [])
+    |> Keyword.get(:cities, [])
+    |> Enum.any?()
   end
 
   attr :current, :boolean, default: false
