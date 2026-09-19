@@ -143,7 +143,20 @@ defmodule McpRegistryWeb.Layouts do
         </div>
 
         <div class="mt-10 flex flex-col justify-between gap-3 border-t border-rule pt-6 font-mono text-xs text-dim sm:flex-row">
-          <span>Copyright LoganBesecker.com 2026 &middot; Apache 2.0</span>
+          <span>
+            Copyright LoganBesecker.com 2026 &middot; Apache 2.0
+            <%!-- DB-IP's free database is CC BY 4.0; this credit is a condition
+                  of the licence, not a recommendation. Removing it means the
+                  geo data can no longer be used. --%>
+            &middot; IP data from
+            <a
+              href="https://db-ip.com"
+              rel="noopener"
+              class="underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-brand"
+            >
+              DB-IP
+            </a>
+          </span>
           <span>
             Analytics by
             <a

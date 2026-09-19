@@ -249,6 +249,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
               copy-and-run rather than copy-then-edit. --%>
         <form
           :if={injectable_vars(assigns) != []}
+          id="secret-injector"
           phx-change="update_secrets"
           class="flex flex-col gap-2"
         >
@@ -331,7 +332,12 @@ defmodule McpRegistryWeb.ServerLive.Show do
 
           <%!-- Tools --%>
           <div :if={@active_tab == "tools"} class="space-y-3">
-            <form :if={@tools != []} phx-change="filter_tools" phx-submit="filter_tools">
+            <form
+              :if={@tools != []}
+              id="tool-filter-form"
+              phx-change="filter_tools"
+              phx-submit="filter_tools"
+            >
               <label for="tool-query" class="sr-only">Filter tools</label>
               <input
                 type="text"

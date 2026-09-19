@@ -49,6 +49,35 @@ if config_env() in [:dev, :prod] do
   end
 end
 
+# --- Geo blocking ------------------------------------------------------------
+# Cities refused at the endpoint, before anything else runs. Every rule key has
+# to match, because a city name alone is not unique.
+#
+# The source is DB-IP's free city database, which needs no account and no
+# licence key, so this is live on a fresh deploy. Set GEOIP_SOURCE=maxmind with
+# MAXMIND_LICENSE_KEY to use MaxMind instead; the rules below work with either.
+#
+# A rule value may list several spellings, and here it has to: MaxMind records
+# the subdivision as "CA" and DB-IP as "California". Naming only one of them
+# would match only one database, and would fail silently against the other.
+# Not in :test -- otherwise every `mix test` run downloads 57MB. The plug's own
+# tests inject a database response instead, so the matching rules stay covered.
+config :mcp_registry, :geo_block,
+  loader: :geoip_city,
+  source: if(System.get_env("GEOIP_SOURCE") == "maxmind", do: :maxmind, else: :dbip),
+  license_key: System.get_env("MAXMIND_LICENSE_KEY"),
+  cities:
+    if(config_env() == :test,
+      do: [],
+      else: [
+        %{
+          city: "Mountain View",
+          subdivision: ["California", "CA"],
+          country: ["United States", "US"]
+        }
+      ]
+    )
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :mcp_registry, McpRegistryWeb.Endpoint,
