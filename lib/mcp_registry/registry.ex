@@ -117,7 +117,14 @@ defmodule McpRegistry.Registry do
       servers: Repo.aggregate(active, :count),
       tools: active |> select([s], sum(fragment("cardinality(?)", s.tools))) |> Repo.one() || 0,
       remote: active |> where([s], s.transport != "stdio") |> Repo.aggregate(:count),
-      official: active |> where([s], s.origin == "official") |> Repo.aggregate(:count)
+      official: active |> where([s], s.origin == "official") |> Repo.aggregate(:count),
+      # Listings that exist here and nowhere upstream -- submitted straight to
+      # Harbor rather than mirrored in. `origin` defaults to "local" but is
+      # nullable on rows predating that default, so NULL counts as ours too.
+      unique:
+        active
+        |> where([s], is_nil(s.origin) or s.origin != "official")
+        |> Repo.aggregate(:count)
     }
   end
 

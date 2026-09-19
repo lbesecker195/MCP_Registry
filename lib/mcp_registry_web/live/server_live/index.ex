@@ -60,32 +60,65 @@ defmodule McpRegistryWeb.ServerLive.Index do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <section class="space-y-3">
-        <h1 class="text-4xl font-bold tracking-tight">Find MCP servers your agent can use.</h1>
-        <p class="text-base-content/70 max-w-2xl">
-          <b>{format_number(@stats.servers)}</b>
-          Model Context Protocol servers, {format_number(@stats.remote)} of them hosted remotely.
-          <span :if={@stats.official > 0}>
-            Includes the whole <a
-              href="https://registry.modelcontextprotocol.io"
-              class="link"
-              rel="noopener"
-            >
-              official MCP Registry
-            </a>, kept in sync automatically.
-          </span>
-          Browse below, or <.link navigate={~p"/submit"} class="link">add one</.link>.
+      <section class="space-y-5 pb-2">
+        <h1 class="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
+          Find MCP servers your agent can use.
+        </h1>
+
+        <p class="max-w-2xl text-dim">
+          The registry mirrors the whole <span :if={@stats.official > 0}>official MCP Registry</span>
+          and stays in sync automatically. Browse below, or <.link
+            navigate={~p"/submit"}
+            class="text-base-content underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-primary"
+          >
+            add one
+          </.link>.
         </p>
+
+        <dl class="flex flex-wrap items-baseline gap-x-8 gap-y-3 border-y border-rule py-4 font-mono">
+          <div class="flex items-baseline gap-2">
+            <dd class="text-xl font-semibold tracking-tight">{format_number(@stats.servers)}</dd>
+            <dt class="text-xs text-dim">servers</dt>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <dd class="text-xl font-semibold tracking-tight">{format_number(@stats.tools)}</dd>
+            <dt class="text-xs text-dim">tools</dt>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <dd class="text-xl font-semibold tracking-tight">{format_number(@stats.remote)}</dd>
+            <dt class="text-xs text-dim">hosted remotely</dt>
+          </div>
+          <div :if={@stats.official > 0} class="flex items-baseline gap-2">
+            <dd class="text-xl font-semibold tracking-tight">{format_number(@stats.official)}</dd>
+            <dt class="text-xs text-dim">from the official registry</dt>
+          </div>
+        </dl>
       </section>
 
-      <section id="for-agents" class="card bg-base-200">
-        <div class="card-body p-4 gap-2">
-          <h2 class="font-semibold">For AI agents</h2>
-          <p class="text-sm text-base-content/70">
-            This registry is an MCP server. Connect to it and your agent can search for servers and
-            submit new ones itself, with no account. Details in <a href={~p"/llms.txt"} class="link">/llms.txt</a>.
+      <section id="for-agents" class="rounded-box border border-rule bg-base-200/60">
+        <div class="flex flex-col gap-3 p-4">
+          <div class="flex items-center gap-2">
+            <span class="relative flex size-1.5">
+              <span class="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-75"></span>
+              <span class="relative inline-flex size-1.5 rounded-full bg-accent"></span>
+            </span>
+            <h2 class="font-mono text-xs font-medium tracking-wide uppercase">
+              This registry is itself an MCP server
+            </h2>
+          </div>
+          <p class="max-w-2xl text-sm text-dim">
+            Connect to it and your agent searches and submits on its own, with no account.
+            Details in <a
+              href={~p"/llms.txt"}
+              class="text-base-content underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-primary"
+            >
+              /llms.txt
+            </a>.
           </p>
-          <pre class="bg-base-300 rounded-box p-3 text-xs overflow-x-auto"><code>claude mcp add --transport http mcp-registry-search {@mcp_url}</code></pre>
+          <.copy_command
+            id="agent-install"
+            command={"claude mcp add --transport http mcp-registry-search #{@mcp_url}"}
+          />
         </div>
       </section>
 
@@ -93,97 +126,145 @@ defmodule McpRegistryWeb.ServerLive.Index do
         id="search-form"
         phx-change="search"
         phx-submit="search"
-        class="flex flex-col sm:flex-row gap-2"
+        class="flex flex-col gap-2 sm:flex-row"
       >
-        <label class="input input-bordered flex items-center gap-2 flex-1">
-          <.icon name="hero-magnifying-glass" class="size-4 opacity-60" />
+        <label class="group flex flex-1 items-center gap-2.5 rounded-box border border-rule bg-base-200 px-3 py-2.5 transition-colors focus-within:border-primary">
+          <.icon name="hero-magnifying-glass" class="size-4 shrink-0 text-dim" />
           <input
+            id="search-input"
             type="search"
             name="q"
             value={@q}
             placeholder="Search by name, description, tag or tool name…"
             phx-debounce="250"
-            class="grow"
+            phx-hook=".SearchShortcut"
+            class="grow bg-transparent font-mono text-sm outline-none placeholder:text-dim"
             autocomplete="off"
           />
+          <kbd class="hidden shrink-0 rounded border border-rule px-1.5 py-0.5 font-mono text-[10px] text-dim sm:block">
+            /
+          </kbd>
         </label>
-        <select name="transport" class="select select-bordered">
-          <option value="">Any transport</option>
+        <select
+          name="transport"
+          class="rounded-box border border-rule bg-base-200 px-3 py-2.5 font-mono text-sm outline-none transition-colors focus:border-primary"
+        >
+          <option value="">any transport</option>
           <option :for={t <- @transports} value={t} selected={t == @transport}>{t}</option>
         </select>
       </form>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".SearchShortcut">
+        export default {
+          mounted() {
+            this.onKey = (e) => {
+              const el = document.activeElement
+              const typing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)
+              if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+                e.preventDefault()
+                this.el.focus()
+                this.el.select()
+              } else if (e.key === "Escape" && el === this.el) {
+                this.el.blur()
+              }
+            }
+            window.addEventListener("keydown", this.onKey)
+          },
+          destroyed() {
+            window.removeEventListener("keydown", this.onKey)
+          }
+        }
+      </script>
 
-      <div class="flex flex-wrap gap-2">
+      <div class="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
         <.link
           patch={index_path(@q, @transport, nil)}
-          class={["badge", if(@tag == nil, do: "badge-primary", else: "badge-ghost")]}
+          class={[
+            "shrink-0 rounded-field border px-2.5 py-1 font-mono text-xs transition-colors",
+            if(@tag == nil,
+              do: "border-primary bg-primary text-primary-content",
+              else: "border-rule text-dim hover:border-rule-strong hover:text-base-content"
+            )
+          ]}
         >
           all
         </.link>
         <.link
           :for={{tag, count} <- @tags}
           patch={index_path(@q, @transport, tag)}
-          class={["badge", if(@tag == tag, do: "badge-primary", else: "badge-ghost")]}
+          class={[
+            "shrink-0 rounded-field border px-2.5 py-1 font-mono text-xs transition-colors",
+            if(@tag == tag,
+              do: "border-primary bg-primary text-primary-content",
+              else: "border-rule text-dim hover:border-rule-strong hover:text-base-content"
+            )
+          ]}
         >
-          {tag} <span class="opacity-60 ml-1">{count}</span>
+          {tag} <span class="opacity-70">{count}</span>
         </.link>
       </div>
 
-      <p :if={@servers == []} class="text-base-content/60 py-10 text-center">
-        No servers match. <.link navigate={~p"/submit"} class="link">Submit one?</.link>
-      </p>
+      <div :if={@servers == []} class="border-y border-rule py-16 text-center">
+        <p class="font-mono text-sm text-dim">no servers match</p>
+        <.link
+          navigate={~p"/submit"}
+          class="mt-2 inline-block text-sm text-base-content underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-primary"
+        >
+          submit one?
+        </.link>
+      </div>
 
-      <p :if={@total > 0} id="result-count" class="text-sm text-base-content/60">
+      <p :if={@total > 0} id="result-count" class="font-mono text-xs text-dim">
         Showing {format_number(@first_shown)}–{format_number(@last_shown)} of {format_number(@total)} servers
       </p>
 
-      <ul class="grid gap-3 sm:grid-cols-2">
+      <ul :if={@servers != []} class="rule-list border-y border-rule">
         <li :for={server <- @servers}>
           <.link
             navigate={server_path(server)}
-            class="card bg-base-200 hover:bg-base-300 transition-colors h-full block"
+            class="group/row block px-3 py-3.5 -mx-3 transition-colors hover:bg-base-200"
           >
-            <div class="card-body p-4 gap-2">
-              <div class="flex items-start justify-between gap-2">
-                <h2 class="card-title text-base">{server.title}</h2>
-                <span class={["badge badge-sm shrink-0", transport_badge(server.transport)]}>
-                  {server.transport}
-                </span>
-              </div>
-              <p class="font-mono text-xs opacity-60 truncate">{server.name}</p>
-              <p class="text-sm line-clamp-2">{server.description}</p>
-              <div class="flex flex-wrap gap-1 mt-auto pt-1">
-                <span :for={tag <- Enum.take(server.tags, 4)} class="badge badge-ghost badge-xs">
-                  {tag}
-                </span>
-                <span :if={server.tools != []} class="badge badge-outline badge-xs">
-                  {length(server.tools)} tools
-                </span>
-              </div>
+            <div class="flex items-baseline gap-3">
+              <h2 class="truncate font-medium tracking-tight">{server.title}</h2>
+              <span class="ml-auto shrink-0 font-mono text-[11px] text-dim">
+                {server.transport}
+              </span>
+            </div>
+
+            <p class="mt-0.5 truncate font-mono text-xs">
+              <span class="text-dim">{Server.namespace(server)}</span><span class="text-base-content/90 transition-colors group-hover/row:text-primary">{Server.short_name(
+                server
+              )}</span>
+            </p>
+
+            <p class="mt-1.5 line-clamp-2 text-sm text-dim">{server.description}</p>
+
+            <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-dim">
+              <span :if={server.tools != []}>{length(server.tools)} tools</span>
+              <span :for={tag <- Enum.take(server.tags, 4)} class="text-dim">#{tag}</span>
             </div>
           </.link>
         </li>
       </ul>
 
-      <nav :if={@last_page > 1} id="pagination" class="flex items-center justify-center gap-2">
+      <nav :if={@last_page > 1} id="pagination" class="flex items-center justify-center gap-3 pt-2">
         <.link
           :if={@page > 1}
           patch={index_path(@q, @transport, @tag, @page - 1)}
-          class="btn btn-sm"
+          class="flex items-center gap-1.5 rounded-field border border-rule px-3 py-1.5 font-mono text-xs transition-colors hover:border-rule-strong hover:bg-base-200"
           rel="prev"
         >
-          <.icon name="hero-arrow-left-micro" class="size-4" /> Previous
+          <.icon name="hero-arrow-left-micro" class="size-3.5" /> Previous
         </.link>
-        <span class="text-sm text-base-content/60 px-2">
+        <span class="px-2 font-mono text-xs text-dim">
           Page {format_number(@page)} of {format_number(@last_page)}
         </span>
         <.link
           :if={@page < @last_page}
           patch={index_path(@q, @transport, @tag, @page + 1)}
-          class="btn btn-sm"
+          class="flex items-center gap-1.5 rounded-field border border-rule px-3 py-1.5 font-mono text-xs transition-colors hover:border-rule-strong hover:bg-base-200"
           rel="next"
         >
-          Next <.icon name="hero-arrow-right-micro" class="size-4" />
+          Next <.icon name="hero-arrow-right-micro" class="size-3.5" />
         </.link>
       </nav>
     </Layouts.app>
@@ -217,6 +298,4 @@ defmodule McpRegistryWeb.ServerLive.Index do
 
   defp blank_to_nil(value) when value in [nil, ""], do: nil
   defp blank_to_nil(value), do: value
-
-  defp transport_badge(transport), do: Layouts.transport_badge(transport)
 end

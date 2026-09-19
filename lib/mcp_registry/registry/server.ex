@@ -53,6 +53,20 @@ defmodule McpRegistry.Registry.Server do
   def short_name(name) when is_binary(name), do: name |> String.split("/") |> List.last()
 
   @doc """
+  Everything up to and including the slash: `io.github.acme/weather` becomes
+  `io.github.acme/`. Paired with `short_name/1` so a listing's identifier can be
+  set with the namespace dimmed and the server name at full contrast.
+  """
+  def namespace(%__MODULE__{name: name}), do: namespace(name)
+
+  def namespace(name) when is_binary(name) do
+    case String.split(name, "/", parts: 2) do
+      [ns, _rest] -> ns <> "/"
+      _ -> ""
+    end
+  end
+
+  @doc """
   Best-effort publisher name for SEO copy, derived from the reverse-DNS
   namespace: `io.github.acme/weather` becomes `Acme`, `com.brave/brave-search`
   becomes `Brave`. There is no dedicated company field, so this is a guess,

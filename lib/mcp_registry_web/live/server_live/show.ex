@@ -70,15 +70,30 @@ defmodule McpRegistryWeb.ServerLive.Show do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <div class="breadcrumbs text-sm">
-        <ul>
-          <li><.link navigate={~p"/"}>Servers</.link></li>
-          <li class="font-mono">{@server.name}</li>
-        </ul>
-      </div>
+      <nav aria-label="Breadcrumb" class="font-mono text-xs">
+        <ol class="flex flex-wrap items-center gap-1.5 text-dim">
+          <li>
+            <.link navigate={~p"/"} class="transition-colors hover:text-base-content">Servers</.link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li>
+            <.link
+              patch={~p"/?q=#{String.trim_trailing(Server.namespace(@server), "/")}"}
+              class="transition-colors hover:text-base-content"
+            >
+              {String.trim_trailing(Server.namespace(@server), "/")}
+            </.link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li class="text-base-content">{Server.short_name(@server)}</li>
+        </ol>
+      </nav>
 
-      <div :if={@server.status != "active"} class="alert alert-warning">
-        <.icon name="hero-clock" class="size-5" />
+      <div
+        :if={@server.status != "active"}
+        class="flex items-center gap-2 rounded-box border border-warning/40 bg-warning/10 px-4 py-3 text-sm"
+      >
+        <.icon name="hero-clock" class="size-4 shrink-0 text-warning" />
         <span>
           This listing is <b>{@server.status}</b>
           and is not shown in search results{if @server.status ==
@@ -87,60 +102,90 @@ defmodule McpRegistryWeb.ServerLive.Show do
         </span>
       </div>
 
-      <.header>
-        {meta_title(@server)}
-        <:subtitle>
-          <span class="font-mono">{@server.name}</span> &middot; v{@server.version}
-        </:subtitle>
-        <:actions>
-          <span class={["badge", Layouts.transport_badge(@server.transport)]}>{@server.transport}</span>
-        </:actions>
-      </.header>
+      <div class="max-w-2xl space-y-4">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h1 class="text-3xl font-semibold tracking-tight">{meta_title(@server)}</h1>
+          <span class="rounded-field border border-rule px-2 py-0.5 font-mono text-[11px] text-dim">
+            {@server.transport}
+          </span>
+        </div>
 
-      <p class="text-base leading-relaxed">{display_description(assigns)}</p>
+        <p class="font-mono text-xs">
+          <span class="text-dim">{Server.namespace(@server)}</span><span>{Server.short_name(@server)}</span>
+          <span class="text-dim">&middot; v{@server.version}</span>
+        </p>
 
-      <p
-        :if={@server.synced_at}
-        id="official-provenance"
-        class="text-sm text-base-content/70 flex items-center gap-2"
-      >
-        <.icon name="hero-check-badge" class="size-4 text-success" />
-        <span>
-          Listed in the <a href={@official_url} class="link" rel="noopener">official MCP Registry</a>{synced_phrase(
-            @server.synced_at
-          )}.
-        </span>
-      </p>
+        <p class="text-base leading-relaxed text-pretty">{display_description(assigns)}</p>
 
-      <div :if={@server.tags != []} class="flex flex-wrap gap-2">
-        <.link :for={tag <- @server.tags} navigate={~p"/?tag=#{tag}"} class="badge badge-ghost">
-          {tag}
+        <p
+          :if={@server.synced_at}
+          id="official-provenance"
+          class="flex items-center gap-2 font-mono text-xs text-dim"
+        >
+          <.icon name="hero-check-badge" class="size-4 shrink-0 text-success" />
+          <span>
+            Listed in the <a
+              href={@official_url}
+              class="text-base-content underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-primary"
+              rel="noopener"
+            >official MCP Registry</a>{synced_phrase(@server.synced_at)}.
+          </span>
+        </p>
+      </div>
+
+      <.copy_command
+        :if={@snippets != []}
+        id="primary-install"
+        label={List.first(@snippets).label}
+        command={List.first(@snippets).code}
+        class="max-w-2xl"
+      />
+
+      <div :if={@server.tags != []} class="flex flex-wrap gap-1.5">
+        <.link
+          :for={tag <- @server.tags}
+          navigate={~p"/?tag=#{tag}"}
+          class="rounded-field border border-rule px-2.5 py-1 font-mono text-xs text-dim transition-colors hover:border-rule-strong hover:text-base-content"
+        >
+          #{tag}
         </.link>
       </div>
 
       <section class="grid gap-8 md:grid-cols-[3fr_2fr]">
         <div class="space-y-6">
-          <p :if={@snippets == []} class="text-sm text-base-content/70">
+          <p :if={@snippets == []} class="text-sm text-dim">
             There's no ready-made install snippet for this package type yet. See the repository or
             website for setup instructions.
           </p>
 
-          <div :for={snippet <- @snippets} class="space-y-2">
-            <h3 class="font-semibold">{snippet.label}</h3>
-            <pre class="bg-base-300 rounded-box p-4 text-xs overflow-x-auto"><code>{snippet.code}</code></pre>
+          <div :for={snippet <- Enum.drop(@snippets, 1)} class="space-y-2">
+            <h3 class="font-mono text-xs tracking-wide text-dim uppercase">{snippet.label}</h3>
+            <pre class="overflow-x-auto rounded-box border border-rule bg-well p-4 text-xs leading-relaxed"><code>{snippet.code}</code></pre>
           </div>
 
           <div :if={@server.tools != []} class="space-y-2">
-            <h3 class="font-semibold">Tools ({length(@server.tools)})</h3>
-            <div class="flex flex-wrap gap-1">
-              <code :for={tool <- @server.tools} class="badge badge-outline font-mono">{tool}</code>
+            <h3 class="font-mono text-xs tracking-wide text-dim uppercase">
+              Tools ({length(@server.tools)})
+            </h3>
+            <div class="flex flex-wrap gap-1.5">
+              <code
+                :for={tool <- @server.tools}
+                class="rounded-field border border-rule px-2 py-0.5 font-mono text-xs"
+              >
+                {tool}
+              </code>
             </div>
           </div>
 
-          <details class="collapse collapse-arrow bg-base-200">
-            <summary class="collapse-title font-semibold">server.json manifest</summary>
-            <div class="collapse-content">
-              <pre class="text-xs overflow-x-auto"><code>{@manifest}</code></pre>
+          <details class="group/manifest rounded-box border border-rule">
+            <summary class="flex cursor-pointer items-center gap-2 px-4 py-3 font-mono text-xs tracking-wide text-dim uppercase transition-colors hover:text-base-content">
+              <.icon
+                name="hero-chevron-right-micro"
+                class="size-3.5 transition-transform duration-200 group-open/manifest:rotate-90"
+              /> server.json manifest
+            </summary>
+            <div class="border-t border-rule">
+              <pre class="overflow-x-auto p-4 text-xs leading-relaxed"><code>{@manifest}</code></pre>
             </div>
           </details>
 
@@ -168,10 +213,11 @@ defmodule McpRegistryWeb.ServerLive.Show do
           </div>
 
           <div :if={@readme_html} class="space-y-2">
-            <h3 class="font-semibold">From the README</h3>
+            <h3 class="font-mono text-xs tracking-wide text-dim uppercase">From the README</h3>
             <div class={[
-              "text-sm leading-relaxed space-y-3",
-              "[&_a]:link [&_pre]:bg-base-300 [&_pre]:rounded-box [&_pre]:p-3 [&_pre]:overflow-x-auto",
+              "space-y-3 text-sm leading-relaxed",
+              "[&_a]:underline [&_a]:decoration-rule-strong [&_a]:underline-offset-4",
+              "[&_pre]:overflow-x-auto [&_pre]:rounded-box [&_pre]:border [&_pre]:border-rule [&_pre]:bg-well [&_pre]:p-3",
               "[&_code]:font-mono [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
             ]}>
               {raw(@readme_html)}
@@ -187,21 +233,21 @@ defmodule McpRegistryWeb.ServerLive.Show do
             phx-update="ignore"
             phx-hook=".PkgManagerTabs"
           >
-            <h3 class="font-semibold mb-2">Integration</h3>
-            <div class="tabs tabs-box">
+            <h3 class="mb-2 font-mono text-xs tracking-wide text-dim uppercase">Integration</h3>
+            <div class="tabs tabs-box border border-rule bg-base-200/60">
               <%= for {opt, index} <- Enum.with_index(@package_manager_options) do %>
                 <input
                   type="radio"
                   name="pkg-manager-tab"
-                  class={["tab", !opt.available && "opacity-50"]}
+                  class={["tab font-mono !text-xs", !opt.available && "opacity-60"]}
                   aria-label={opt.label}
                   value={opt.id}
                   checked={index == 0}
                   id={"pkg-manager-tab-#{opt.id}"}
                 />
-                <div class="tab-content bg-base-100 border-base-300 p-3">
-                  <pre :if={opt.available} class="text-xs overflow-x-auto"><code>{opt.code}</code></pre>
-                  <p :if={!opt.available} class="text-xs text-base-content/70">
+                <div class="tab-content border-rule bg-well p-3">
+                  <pre :if={opt.available} class="overflow-x-auto text-xs leading-relaxed"><code>{opt.code}</code></pre>
+                  <p :if={!opt.available} class="text-xs text-dim">
                     Not available via {opt.label}. Try one of the other package managers above.
                   </p>
                 </div>
