@@ -248,12 +248,12 @@ defmodule McpRegistryWeb.ServerLive.Show do
               is substituted into the snippet as you type, so the block is
               copy-and-run rather than copy-then-edit. --%>
         <form
-          :if={@secrets != %{} and current_client(assigns).accepts_secrets}
+          :if={injectable_vars(assigns) != []}
           phx-change="update_secrets"
           class="flex flex-col gap-2"
         >
           <div
-            :for={var <- @server.env_vars}
+            :for={var <- injectable_vars(assigns)}
             class="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3"
           >
             <label
@@ -615,6 +615,23 @@ defmodule McpRegistryWeb.ServerLive.Show do
 
   defp current_client(%{clients: clients, selected_client: id}) do
     Enum.find(clients, List.first(clients), &(&1.id == id))
+  end
+
+  # Which declared variables this client's snippet actually has a slot for.
+  #
+  # Not simply "every variable the listing declares": a remote server's config
+  # is a URL, so none of its variables appear in the snippet even though the
+  # registry records them — the server expects them as headers or through its
+  # own OAuth. Offering a field that substitutes into nothing would promise an
+  # edit the page cannot make, so the form is driven by the snippet itself.
+  defp injectable_vars(assigns) do
+    client = current_client(assigns)
+
+    if client && client.accepts_secrets do
+      Enum.filter(assigns.server.env_vars, &String.contains?(client.code, "<#{&1}>"))
+    else
+      []
+    end
   end
 
   # Substitution happens at render time rather than in `Clients`, so the module
