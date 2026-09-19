@@ -101,7 +101,9 @@ defmodule McpRegistryWeb.CoreComponents do
       <.button phx-click="go" variant="primary">Send!</.button>
       <.button navigate={~p"/"}>Home</.button>
   """
-  attr :rest, :global, include: ~w(href navigate patch method download name value disabled type)
+  attr :rest, :global,
+    include: ~w(href navigate patch method download name value disabled type rel target)
+
   attr :class, :any, default: nil
   attr :variant, :string, values: ~w(primary soft ghost), default: "soft"
   slot :inner_block, required: true
@@ -578,6 +580,355 @@ defmodule McpRegistryWeb.CoreComponents do
         }
       </script>
     </div>
+    """
+  end
+
+  @doc """
+  A block of code or configuration, with a copy button that always shows.
+
+  Unlike `copy_command/1` this is for multi-line configuration rather than a
+  single shell command: there is no `$` gutter, the copy button is opaque, and
+  placeholders are highlighted.
+
+  A placeholder is any `<SCREAMING_SNAKE>` token — the shape
+  `McpRegistry.Registry.Install` emits for a value the reader has to supply.
+  They are wrapped in `.placeholder` so the one thing that must be edited
+  before the snippet works is the one thing that catches the eye.
+
+  ## Examples
+
+      <.code_block id="claude-desktop" code={@config.code} copy_label="Copy config" />
+  """
+  attr :id, :string, required: true
+  attr :code, :string, required: true
+  attr :copy_label, :string, default: "Copy"
+  attr :class, :any, default: nil
+  attr :max_height, :string, default: nil, doc: "e.g. \"max-h-96\" to cap a long block"
+
+  def code_block(assigns) do
+    assigns = assign(assigns, :segments, highlight_placeholders(assigns.code))
+
+    ~H"""
+    <div id={@id} class={["group/code relative", @class]} phx-hook=".CopyCommand">
+      <pre class={[
+        "scroll-thin overflow-x-auto rounded-box border border-rule bg-sunken",
+        "p-4 pr-24 font-mono text-xs leading-relaxed",
+        @max_height && "#{@max_height} overflow-y-auto"
+      ]}><code><span :for={{kind, text} <- @segments} class={if kind == :placeholder, do: "placeholder"}>{text}</span></code></pre>
+      <button
+        type="button"
+        data-command={@code}
+        aria-label={"Copy: #{@copy_label}"}
+        class={[
+          "absolute top-3 right-3 inline-flex items-center gap-1.5 rounded-field",
+          "bg-brand px-2.5 py-1.5 font-mono text-[11px] font-semibold text-brand-ink",
+          "shadow-sm transition-all duration-200",
+          "hover:brightness-110 active:scale-[0.98]",
+          "opacity-90 group-hover/code:opacity-100"
+        ]}
+      >
+        {@copy_label}
+      </button>
+    </div>
+    """
+  end
+
+  # Splits a snippet into `{:text, _}` and `{:placeholder, _}` runs. Keeping
+  # this out of the template means the raw string still goes to the clipboard
+  # untouched -- the highlight is presentation only.
+  defp highlight_placeholders(code) do
+    Regex.split(~r/<[A-Z][A-Z0-9_]*>/, code, include_captures: true, trim: true)
+    |> Enum.map(fn part ->
+      if Regex.match?(~r/^<[A-Z][A-Z0-9_]*>$/, part),
+        do: {:placeholder, part},
+        else: {:text, part}
+    end)
+  end
+
+  @doc """
+  A small status pill.
+
+  `dot` adds a filled dot before the label, for states that are worth reading
+  as live rather than as a category.
+
+  ## Examples
+
+      <.badge tone="success" dot>Verified official</.badge>
+      <.badge tone="warning">Mutating</.badge>
+  """
+  attr :tone, :string,
+    values: ~w(neutral brand success warning danger accent),
+    default: "neutral"
+
+  attr :dot, :boolean, default: false
+  attr :class, :any, default: nil
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def badge(assigns) do
+    tones = %{
+      "neutral" => {"border-rule bg-surface text-dim", "bg-dim"},
+      "brand" => {"border-brand/30 bg-brand/10 text-brand", "bg-brand"},
+      "success" => {"border-success/30 bg-success/10 text-success", "bg-success"},
+      "warning" => {"border-warning/30 bg-warning/10 text-warning", "bg-warning"},
+      "danger" => {"border-danger/30 bg-danger/10 text-danger", "bg-danger"},
+      "accent" => {"border-accent/30 bg-accent/10 text-accent", "bg-accent"}
+    }
+
+    {pill, dot} = Map.fetch!(tones, assigns.tone)
+    assigns = assign(assigns, pill_class: pill, dot_class: dot)
+
+    ~H"""
+    <span
+      class={[
+        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5",
+        "font-mono text-[11px] font-medium whitespace-nowrap",
+        @pill_class,
+        @class
+      ]}
+      {@rest}
+    >
+      <span :if={@dot} class={["size-1.5 rounded-full", @dot_class]} aria-hidden="true"></span>
+      {render_slot(@inner_block)}
+    </span>
+    """
+  end
+
+  @doc """
+  A `key:value` fact, set as one monospace chip.
+
+  Used under a listing's title to state transport, runtime and licence at a
+  glance, in the same shape the identifier is written in.
+
+  ## Examples
+
+      <.meta_chip key="transport" value="stdio" tone="brand" />
+  """
+  attr :key, :string, required: true
+  attr :value, :any, required: true
+  attr :tone, :string, values: ~w(neutral brand accent), default: "neutral"
+
+  def meta_chip(assigns) do
+    tones = %{
+      "neutral" => "border-rule bg-surface text-dim",
+      "brand" => "border-brand/30 bg-brand/10 text-brand",
+      "accent" => "border-accent/30 bg-accent/10 text-accent"
+    }
+
+    assigns = assign(assigns, :tone_class, Map.fetch!(tones, assigns.tone))
+
+    ~H"""
+    <span class={[
+      "inline-flex items-center rounded-field border px-2 py-0.5 font-mono text-[11px]",
+      @tone_class
+    ]}>
+      <span class="opacity-70">{@key}:</span>{@value}
+    </span>
+    """
+  end
+
+  @doc """
+  The identity tile for a listing: two initials on a hue derived from the name.
+
+  The hue is a hash of the full reverse-DNS name, so a given server draws the
+  same tile everywhere it appears and a page of results is scannable by colour
+  before it is readable by name. Lightness and chroma are fixed in
+  `.monogram`, so contrast does not drift between hues.
+
+  ## Examples
+
+      <.monogram name={@server.name} size="size-12" />
+  """
+  attr :name, :string, required: true
+  attr :size, :string, default: "size-10"
+  attr :class, :any, default: nil
+
+  def monogram(assigns) do
+    assigns =
+      assign(assigns,
+        initials: monogram_initials(assigns.name),
+        hue: monogram_hue(assigns.name)
+      )
+
+    ~H"""
+    <span
+      class={[
+        "monogram inline-flex shrink-0 items-center justify-center rounded-box border",
+        "font-mono font-bold tracking-tight select-none",
+        @size,
+        @class
+      ]}
+      style={"--mono-h: #{@hue}"}
+      aria-hidden="true"
+    >
+      {@initials}
+    </span>
+    """
+  end
+
+  # "io.github.github/github-mcp-server" -> "GI". Generic words are dropped
+  # first, because almost every listing here ends in some arrangement of
+  # "mcp server" and initials taken from those would all collide.
+  @monogram_noise ~w(mcp server servers service api tool tools official)
+
+  defp monogram_initials(name) when is_binary(name) do
+    words =
+      name
+      |> String.split("/")
+      |> List.last()
+      |> String.split(~r/[^a-zA-Z0-9]+/, trim: true)
+      |> Enum.reject(&(String.downcase(&1) in @monogram_noise))
+
+    case words do
+      [] -> "MC"
+      [one] -> one |> String.slice(0, 2) |> String.upcase()
+      [a, b | _] -> String.upcase(String.first(a) <> String.first(b))
+    end
+  end
+
+  defp monogram_initials(_), do: "MC"
+
+  # :erlang.phash2 is stable across runs and nodes, which matters: the tile has
+  # to be the same colour in the catalogue and on the detail page.
+  defp monogram_hue(name) when is_binary(name), do: rem(:erlang.phash2(name), 360)
+  defp monogram_hue(_), do: 250
+
+  @doc """
+  A titled panel: the site's standard box for a self-contained block of facts.
+
+  This is the sidebar unit on the server detail page, and the same shape any
+  page should reach for when it needs a bordered group with a label.
+
+  ## Examples
+
+      <.panel title="Security and token scopes" icon="hero-shield-check">
+        …
+      </.panel>
+  """
+  attr :title, :string, required: true
+  attr :icon, :string, default: nil
+  attr :class, :any, default: nil
+  slot :inner_block, required: true
+
+  def panel(assigns) do
+    ~H"""
+    <section class={["space-y-3 rounded-box border border-rule bg-surface/30 p-4", @class]}>
+      <h2 class="flex items-center gap-2 font-mono text-[11px] tracking-wide text-dim uppercase">
+        <.icon :if={@icon} name={@icon} class="size-3.5 text-brand" />
+        {@title}
+      </h2>
+      {render_slot(@inner_block)}
+    </section>
+    """
+  end
+
+  @doc """
+  One key/value line inside a `panel/1`, hairline-separated from the next.
+
+  ## Examples
+
+      <.spec_row label="Transport" value="stdio" />
+  """
+  attr :label, :string, required: true
+  attr :value, :any, default: nil
+  attr :tone, :string, values: ~w(default brand success dim), default: "default"
+  slot :inner_block
+
+  def spec_row(assigns) do
+    tones = %{
+      "default" => "text-ink",
+      "brand" => "text-brand",
+      "success" => "text-success",
+      "dim" => "text-dim"
+    }
+
+    assigns = assign(assigns, :value_class, Map.fetch!(tones, assigns.tone))
+
+    ~H"""
+    <div class="flex items-baseline justify-between gap-3 border-b border-rule py-1.5 text-xs last:border-0">
+      <span class="shrink-0 text-dim">{@label}</span>
+      <span class={["min-w-0 truncate text-right font-mono", @value_class]}>
+        {if @inner_block == [], do: @value, else: render_slot(@inner_block)}
+      </span>
+    </div>
+    """
+  end
+
+  @doc """
+  A segmented control: one choice from a small set, as inset pills.
+
+  Each option is `%{id, label}`. Clicking pushes `event` with `phx-value-<param>`
+  set to the option's id, so the caller owns the state.
+
+  ## Examples
+
+      <.segmented options={@clients} selected={@selected_client} event="select_client" param="client" />
+  """
+  attr :options, :list, required: true
+  attr :selected, :string, required: true
+  attr :event, :string, required: true
+  attr :param, :string, default: "value"
+  attr :label, :string, default: nil, doc: "accessible name for the group"
+
+  def segmented(assigns) do
+    ~H"""
+    <div
+      class="flex flex-wrap gap-0.5 rounded-field border border-rule bg-canvas p-0.5"
+      role="group"
+      aria-label={@label}
+    >
+      <button
+        :for={option <- @options}
+        type="button"
+        phx-click={@event}
+        phx-value-value={if @param == "value", do: option.id}
+        phx-value-client={if @param == "client", do: option.id}
+        aria-pressed={to_string(@selected == option.id)}
+        class={[
+          "cursor-pointer rounded-[0.3125rem] px-3 py-1 font-mono text-xs transition-all duration-200",
+          if(@selected == option.id,
+            do: "bg-surface text-ink shadow-sm",
+            else: "text-dim hover:text-ink"
+          )
+        ]}
+      >
+        {option.label}
+      </button>
+    </div>
+    """
+  end
+
+  @doc """
+  An underlined tab in a tab bar. The caller owns which one is current.
+
+  ## Examples
+
+      <.tab_button tab="tools" current={@active_tab} event="select_tab">Tools</.tab_button>
+  """
+  attr :tab, :string, required: true
+  attr :current, :string, required: true
+  attr :event, :string, required: true
+  slot :inner_block, required: true
+
+  def tab_button(assigns) do
+    assigns = assign(assigns, :active?, assigns.tab == assigns.current)
+
+    ~H"""
+    <button
+      type="button"
+      phx-click={@event}
+      phx-value-tab={@tab}
+      aria-current={@active? && "page"}
+      class={[
+        "-mb-px cursor-pointer border-b-2 pb-2 text-sm font-medium whitespace-nowrap transition-colors",
+        if(@active?,
+          do: "border-brand text-brand",
+          else: "border-transparent text-dim hover:text-ink"
+        )
+      ]}
+    >
+      {render_slot(@inner_block)}
+    </button>
     """
   end
 

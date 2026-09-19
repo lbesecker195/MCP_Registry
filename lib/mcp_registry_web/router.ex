@@ -18,9 +18,12 @@ defmodule McpRegistryWeb.Router do
   scope "/", McpRegistryWeb do
     pipe_through :browser
 
-    live "/", ServerLive.Index, :index
-    live "/submit", ServerLive.New, :new
+    live "/", ServerLive.Home, :home
+    # The exact path has to come before the glob, or `/servers` is matched by
+    # `*name` with an empty segment and never reaches the catalogue.
+    live "/servers", ServerLive.Index, :index
     live "/servers/*name", ServerLive.Show, :show
+    live "/submit", ServerLive.New, :new
     get "/llms.txt", LlmsController, :show
   end
 

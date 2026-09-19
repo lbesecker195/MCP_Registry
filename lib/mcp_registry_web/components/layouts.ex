@@ -38,6 +38,13 @@ defmodule McpRegistryWeb.Layouts do
     default: false,
     doc: "drop the reading-width cap, for the landing page's full-bleed sections"
 
+  slot :rail,
+    doc: """
+    A full-width bar pinned under the site header — breadcrumbs on the left,
+    status on the right. It cannot be rendered from inside the content column,
+    which is width-capped, so it is a slot here instead.
+    """
+
   slot :inner_block, required: true
 
   def app(assigns) do
@@ -78,7 +85,16 @@ defmodule McpRegistryWeb.Layouts do
       </div>
     </header>
 
-    <main id="main" class="px-4 py-10 sm:px-6 lg:px-8">
+    <div
+      :if={@rail != []}
+      class="sticky top-14 z-20 border-b border-rule bg-surface/70 backdrop-blur-md"
+    >
+      <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-4 py-2.5 sm:px-6 lg:px-8">
+        {render_slot(@rail)}
+      </div>
+    </div>
+
+    <main id="main" class={["px-4 pb-10 sm:px-6 lg:px-8", if(@rail != [], do: "pt-6", else: "pt-10")]}>
       <div class={["mx-auto space-y-6", if(@wide, do: "max-w-6xl", else: "max-w-5xl")]}>
         {render_slot(@inner_block)}
       </div>

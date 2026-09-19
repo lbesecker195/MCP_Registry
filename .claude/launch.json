@@ -6,6 +6,12 @@
       "runtimeExecutable": "mix",
       "runtimeArgs": ["phx.server"],
       "port": 4000
+    },
+    {
+      "name": "mcp-harbor-canonical",
+      "runtimeExecutable": "mix",
+      "runtimeArgs": ["phx.server"],
+      "port": 4010
     }
   ]
 }
