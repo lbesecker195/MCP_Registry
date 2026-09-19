@@ -14,13 +14,42 @@ defmodule McpRegistry.Registry.Install do
 
   def command(_), do: nil
 
+  # Package managers MCP servers are essentially never actually published to
+  # (they're OS-level or general-purpose package managers, not language
+  # registries), but that people commonly search "<package> homebrew" /
+  # "<package> apt" etc. regardless of what actually ships there. Listed so
+  # a search like that can land here and get redirected to what does work,
+  # rather than this page never matching that query at all.
+  @unavailable_managers [
+    %{id: "homebrew", label: "Homebrew"},
+    %{id: "apt", label: "apt"},
+    %{id: "chocolatey", label: "Chocolatey"},
+    %{id: "winget", label: "winget"},
+    %{id: "conda", label: "conda"}
+  ]
+
   @doc """
   Alternative package-manager invocations for the same package, as a list of
-  `%{id, label, code}` maps -- one tab's worth each. Empty for remote-only
-  listings and registries with no package-manager front-end of their own
-  (`mcpb` ships a bundle file, not something a package manager fetches).
+  `%{id, label, available, code}` maps -- one tab's worth each. `available:
+  false` entries (`code: nil`) are package managers this package isn't
+  actually published to, kept for search traffic on those queries; the UI
+  points them back at the working options instead of showing a command.
+  Empty for remote-only listings and registries with no package-manager
+  front-end of their own (`mcpb` ships a bundle file, not something a
+  package manager fetches).
   """
-  def package_manager_options(%Server{package_registry: "npm", package_identifier: id}) do
+  def package_manager_options(%Server{} = server) do
+    case real_package_manager_options(server) do
+      [] ->
+        []
+
+      real ->
+        real ++
+          Enum.map(@unavailable_managers, &Map.merge(&1, %{available: false, code: nil}))
+    end
+  end
+
+  defp real_package_manager_options(%Server{package_registry: "npm", package_identifier: id}) do
     [
       %{id: "npx", label: "npx", code: "npx -y #{id}"},
       %{id: "npm", label: "npm", code: "npm install -g #{id}"},
@@ -28,35 +57,41 @@ defmodule McpRegistry.Registry.Install do
       %{id: "yarn", label: "yarn", code: "yarn dlx #{id}"},
       %{id: "bun", label: "bun", code: "bunx #{id}"}
     ]
+    |> mark_available()
   end
 
-  def package_manager_options(%Server{package_registry: "pypi", package_identifier: id}) do
+  defp real_package_manager_options(%Server{package_registry: "pypi", package_identifier: id}) do
     [
       %{id: "uvx", label: "uvx", code: "uvx #{id}"},
       %{id: "pip", label: "pip", code: "pip install #{id}"},
       %{id: "pipx", label: "pipx", code: "pipx run #{id}"}
     ]
+    |> mark_available()
   end
 
-  def package_manager_options(%Server{package_registry: "oci", package_identifier: id}) do
+  defp real_package_manager_options(%Server{package_registry: "oci", package_identifier: id}) do
     [
       %{id: "docker", label: "Docker", code: "docker run -i --rm #{id}"},
       %{id: "podman", label: "Podman", code: "podman run -i --rm #{id}"}
     ]
+    |> mark_available()
   end
 
-  def package_manager_options(%Server{package_registry: "nuget", package_identifier: id}) do
+  defp real_package_manager_options(%Server{package_registry: "nuget", package_identifier: id}) do
     [
       %{id: "dnx", label: "dnx", code: "dnx #{id} --yes"},
       %{id: "dotnet", label: ".NET tool", code: "dotnet tool install --global #{id}"}
     ]
+    |> mark_available()
   end
 
-  def package_manager_options(%Server{package_registry: "cargo", package_identifier: id}) do
-    [%{id: "cargo", label: "cargo", code: "cargo install #{id}"}]
+  defp real_package_manager_options(%Server{package_registry: "cargo", package_identifier: id}) do
+    [%{id: "cargo", label: "cargo", code: "cargo install #{id}"}] |> mark_available()
   end
 
-  def package_manager_options(_), do: []
+  defp real_package_manager_options(_), do: []
+
+  defp mark_available(options), do: Enum.map(options, &Map.put(&1, :available, true))
 
   @doc "A list of `%{label, lang, code}` snippets for the server."
   def snippets(%Server{} = server) do

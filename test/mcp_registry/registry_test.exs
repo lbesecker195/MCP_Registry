@@ -194,18 +194,40 @@ defmodule McpRegistry.RegistryTest do
       assert json_code =~ ~s("type": "sse")
     end
 
-    test "package_manager_options/1 lists per-registry package-manager commands" do
+    test "package_manager_options/1 lists per-registry commands, then unavailable ones for SEO" do
       npm = server_fixture()
-      ids = npm |> Install.package_manager_options() |> Enum.map(& &1.id)
-      assert ids == ["npx", "npm", "pnpm", "yarn", "bun"]
+      options = Install.package_manager_options(npm)
+      {real, unavailable} = Enum.split_with(options, & &1.available)
 
-      assert %{code: "npx -y @acme/weather-mcp"} =
-               Enum.find(Install.package_manager_options(npm), &(&1.id == "npx"))
+      assert Enum.map(real, & &1.id) == ["npx", "npm", "pnpm", "yarn", "bun"]
+      assert Enum.all?(real, &is_binary(&1.code))
+      assert %{code: "npx -y @acme/weather-mcp"} = Enum.find(real, &(&1.id == "npx"))
+
+      assert Enum.map(unavailable, & &1.id) == [
+               "homebrew",
+               "apt",
+               "chocolatey",
+               "winget",
+               "conda"
+             ]
+
+      assert Enum.all?(unavailable, &is_nil(&1.code))
+      # Unavailable entries always come after every real one, regardless of registry.
+      assert Enum.take(options, -5) == unavailable
 
       pypi =
         server_fixture(%{package_registry: "pypi", package_identifier: "acme-weather-mcp"})
 
-      assert Install.package_manager_options(pypi) |> Enum.map(& &1.id) == ["uvx", "pip", "pipx"]
+      pypi_options = Install.package_manager_options(pypi)
+
+      assert pypi_options |> Enum.filter(& &1.available) |> Enum.map(& &1.id) == [
+               "uvx",
+               "pip",
+               "pipx"
+             ]
+
+      assert pypi_options |> Enum.reject(& &1.available) |> Enum.map(& &1.id) ==
+               Enum.map(unavailable, & &1.id)
 
       remote =
         server_fixture(%{
@@ -215,6 +237,8 @@ defmodule McpRegistry.RegistryTest do
           package_identifier: nil
         })
 
+      # No real option at all means no unavailable ones either -- nothing to
+      # redirect a searcher back to.
       assert Install.package_manager_options(remote) == []
     end
   end

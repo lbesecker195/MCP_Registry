@@ -50,6 +50,8 @@ defmodule McpRegistryWeb.ServerLiveTest do
     assert html =~ "Integration"
     assert html =~ "npx -y @acme/weather-mcp"
     assert html =~ "pnpm dlx @acme/weather-mcp"
+    assert html =~ "Homebrew"
+    assert html =~ "Not available via Homebrew. Try one of the other package managers above."
     refute html =~ "Opening of the GitHub README"
     refute html =~ "View repository"
 

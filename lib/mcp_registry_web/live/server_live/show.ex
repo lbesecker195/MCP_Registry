@@ -193,14 +193,17 @@ defmodule McpRegistryWeb.ServerLive.Show do
                 <input
                   type="radio"
                   name="pkg-manager-tab"
-                  class="tab"
+                  class={["tab", !opt.available && "opacity-50"]}
                   aria-label={opt.label}
                   value={opt.id}
                   checked={index == 0}
                   id={"pkg-manager-tab-#{opt.id}"}
                 />
                 <div class="tab-content bg-base-100 border-base-300 p-3">
-                  <pre class="text-xs overflow-x-auto"><code>{opt.code}</code></pre>
+                  <pre :if={opt.available} class="text-xs overflow-x-auto"><code>{opt.code}</code></pre>
+                  <p :if={!opt.available} class="text-xs text-base-content/70">
+                    Not available via {opt.label}. Try one of the other package managers above.
+                  </p>
                 </div>
               <% end %>
             </div>
