@@ -4,6 +4,8 @@ description: "Claude MCP setup for Claude Code: add Harbor’s registry over HTT
 date: 2026-09-15
 ---
 
+> 📖 **Read the comprehensive 20,000+ word technical guide:** [Claude + MCP Integration - Deep Dive](https://ai.mcpharbor.dev/servers) covers integration patterns with the Claude API, implementing MCP clients in Python, handling authentication, managing tool schemas, processing model responses, and building production-ready AI applications with Claude and MCP.
+
 # Claude MCP: Connect Claude Code to MCP Servers
 
 If you want **Claude MCP** working in Claude Code—so Claude can call real tools, read resources, and reuse prompts from Model Context Protocol servers—this is the practical, CLI-first guide. **Claude MCP** is not a separate product brand; it is the pattern of wiring MCP servers into Claude Code with `claude mcp add`, verifying with `claude mcp list` / `claude mcp get`, and then letting the agent use those tools in session. This article shows you how to connect the [MCP Harbor](https://ai.mcpharbor.dev/) registry itself as a remote HTTP MCP server, how to discover workload servers from Harbor’s index, how **stdio** local packages differ from **http** remotes, and how to run agent workflows that call `search_servers` without inventing undocumented UI menus.

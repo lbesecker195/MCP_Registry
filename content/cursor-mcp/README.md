@@ -4,6 +4,8 @@ description: "Cursor MCP guide: connect Cursor to MCP servers, discover remotes 
 date: 2026-09-15
 ---
 
+> 📖 **Read the comprehensive 20,000+ word technical guide:** [Cursor IDE + MCP - Complete Setup and Workflow Guide](https://ai.mcpharbor.dev/servers) provides step-by-step Cursor IDE configuration, advanced development workflows, debugging techniques, integration testing, team setup best practices, and optimization strategies for maximum developer productivity.
+
 # Cursor MCP: Add MCP Servers in Cursor
 
 If you live in Cursor all day, **cursor mcp** is the feature that turns the editor from a strong autocomplete product into a genuine agent workstation. Model Context Protocol (MCP) lets Cursor act as an MCP *client*: it connects to MCP *servers* that expose tools, resources, and prompts, then folds those capabilities into the agent loop so the model can search docs, hit APIs, manage tickets, query data, or drive browsers—without you pasting context by hand.

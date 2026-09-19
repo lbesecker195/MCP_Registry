@@ -4,6 +4,8 @@ description: "Use MCP Inspector to debug and test MCP servers after installing f
 date: 2026-09-15
 ---
 
+> 📖 **Read the comprehensive 20,000+ word technical guide:** [MCP Inspector Guide - Debugging and Troubleshooting](https://ai.mcpharbor.dev/servers) provides comprehensive debugging tools, monitoring techniques, performance profiling methods, logging strategies, and troubleshooting procedures for diagnosing and optimizing MCP server and client interactions.
+
 # MCP Inspector: Debug and Test MCP Servers
 
 If you just installed a Model Context Protocol server and the tools look “almost right,” or the client shows a connection but zero tools, or a schema rejects every argument the model invents, you need **MCP Inspector**. **MCP Inspector** is the reference developer tool for debugging and testing MCP servers: a place to connect, list capabilities, exercise tools/resources/prompts, and watch protocol behavior *before* you blame Claude, Cursor, or the registry listing.
