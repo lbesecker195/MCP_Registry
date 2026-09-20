@@ -4,14 +4,15 @@ defmodule McpRegistryWeb.SponsorsTest do
   import Phoenix.LiveViewTest
   import McpRegistry.RegistryFixtures
 
-  test "the sponsored block links the affiliate slot and offers the rest for sale", %{conn: conn} do
+  test "the sponsored block sells the book on-site and the rest by email", %{conn: conn} do
     server = server_fixture()
     {:ok, _view, html} = live(conn, "/servers/#{server.name}")
 
-    # The paid placement must carry rel="sponsored", or the link reads to
-    # search engines as an editorial endorsement.
-    assert html =~ "https://amzn.to/4cPvd4j"
-    assert html =~ ~s(rel="sponsored noopener noreferrer")
+    # The book tile goes to the landing page, not straight to Amazon: a cold
+    # click from a 250px tile to a product page converts badly. The affiliate
+    # link and its disclosure live on /book, covered in BookLiveTest.
+    assert html =~ ~s(href="/book")
+    refute html =~ "amzn.to"
 
     # Unsold slots open a pre-filled enquiry rather than going nowhere.
     assert html =~ "mailto:me@loganbesecker.com"

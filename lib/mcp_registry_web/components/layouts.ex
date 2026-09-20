@@ -73,6 +73,7 @@ defmodule McpRegistryWeb.Layouts do
           <.nav_link navigate={~p"/servers"} current={@active == :servers}>servers</.nav_link>
           <.nav_link href={~p"/api/v0/servers"} current={false}>api</.nav_link>
           <.nav_link href={~p"/llms.txt"} current={false}>llms.txt</.nav_link>
+          <.nav_link href="https://gateway.mcpharbor.dev" current={false}>gateway</.nav_link>
           <span class="mx-1 hidden h-5 w-px bg-rule sm:block"></span>
           <.theme_toggle />
           <.link
@@ -129,13 +130,11 @@ defmodule McpRegistryWeb.Layouts do
             <:link_item href={~p"/llms.txt"}>llms.txt</:link_item>
             <:link_item href={~p"/api/v0/servers"}>JSON API</:link_item>
             <:link_item href={~p"/mcp"}>MCP endpoint</:link_item>
+            <:link_item href="https://gateway.mcpharbor.dev">MCP Gateway</:link_item>
           </.footer_column>
 
           <.footer_column title="Project">
-            <:link_item href="https://github.com/lbesecker195/MCP_Registry">
-              Source on GitHub
-            </:link_item>
-            <:link_item href="https://github.com/lbesecker195/MCP_Registry/wiki">Wiki</:link_item>
+            <:link_item navigate={~p"/book"}>The book</:link_item>
             <:link_item href="https://seriouslysimpleanalytics.com">
               Seriously Simple Analytics
             </:link_item>
@@ -145,17 +144,22 @@ defmodule McpRegistryWeb.Layouts do
         <div class="mt-10 flex flex-col justify-between gap-3 border-t border-rule pt-6 font-mono text-xs text-dim sm:flex-row">
           <span>
             Copyright LoganBesecker.com 2026 &middot; Apache 2.0
-            <%!-- DB-IP's free database is CC BY 4.0; this credit is a condition
-                  of the licence, not a recommendation. Removing it means the
-                  geo data can no longer be used. --%>
-            &middot; IP data from
-            <a
-              href="https://db-ip.com"
-              rel="noopener"
-              class="underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-brand"
-            >
-              DB-IP
-            </a>
+            <%!-- DB-IP's free database is CC BY 4.0, and the credit is a
+                  condition of that licence rather than a recommendation. It is
+                  therefore tied to whether the data is actually loaded: geo
+                  blocking is off, so nothing here uses DB-IP and no credit is
+                  owed. Switch GEO_BLOCK_ENABLED on and the credit comes back
+                  by itself, which is safer than remembering to re-add it. --%>
+            <span :if={geo_data_in_use?()}>
+              &middot; IP data from
+              <a
+                href="https://db-ip.com"
+                rel="noopener"
+                class="underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-brand"
+              >
+                DB-IP
+              </a>
+            </span>
           </span>
           <span>
             Analytics by
@@ -174,6 +178,15 @@ defmodule McpRegistryWeb.Layouts do
 
     <.flash_group flash={@flash} />
     """
+  end
+
+  # True only when a geo database is actually configured to load. The DB-IP
+  # credit is a licence condition on *use* of the data, so it follows this
+  # rather than being hardcoded.
+  defp geo_data_in_use? do
+    Application.get_env(:mcp_registry, :geo_block, [])
+    |> Keyword.get(:cities, [])
+    |> Enum.any?()
   end
 
   attr :current, :boolean, default: false
@@ -228,10 +241,12 @@ defmodule McpRegistryWeb.Layouts do
   belongs to the page frame, not to the listing being described, and any page
   can drop it into a sidebar.
 
-  The book is a live affiliate link and carries `rel="sponsored"`, which is
-  what Google asks for on paid or affiliate placements — without it the link
-  reads as an editorial endorsement and puts the whole page's ranking at risk.
-  The other three are unsold, and open a pre-filled enquiry email so an
+  The book tile points at `/book`, not at Amazon. A cold click from a 250px
+  tile to a product page converts badly; the landing page names the reader's
+  problem first and asks for the click afterwards, and the visit stays on the
+  site in the meantime. `/book` carries the affiliate link and its disclosure.
+
+  The other three slots are unsold, and open a pre-filled enquiry email so an
   interested buyer can name a price without leaving the page.
 
   Image paths go through `~p`, which appends the digest that
@@ -252,8 +267,8 @@ defmodule McpRegistryWeb.Layouts do
   @sponsor_slots [
     %{
       file: "Book.png",
-      alt: "Sponsored: book cover — opens Amazon",
-      kind: :affiliate
+      alt: "MCP Server Optimization — the book behind this registry",
+      kind: :book
     },
     %{file: "sponsor-1.png", alt: "Sponsor slot available — email to enquire", kind: :enquiry},
     %{file: "sponsor-2.png", alt: "Sponsor slot available — email to enquire", kind: :enquiry},
@@ -289,18 +304,14 @@ defmodule McpRegistryWeb.Layouts do
             `scale: 1.4` while `transform` stays `none`. --%>
       <ul class="flex flex-col items-center gap-3">
         <li :for={slot <- @slots} class="relative z-0 hover:z-20">
-          <%!-- The affiliate link opens in a new tab and is marked sponsored.
-                The enquiry links are mailto: -- no target, because a new tab
-                for a mail client leaves a blank window behind, and no
-                rel="sponsored", which describes paid outbound links and means
-                nothing on a mailto. --%>
+          <%!-- Both destinations are ours now -- /book and a mailto -- so
+                neither needs target="_blank" or rel="sponsored". The affiliate
+                link and its disclosure live on /book. --%>
           <a
             href={slot_href(slot)}
-            target={if slot.kind == :affiliate, do: "_blank"}
-            rel={if slot.kind == :affiliate, do: "sponsored noopener noreferrer"}
             class={[
               sponsor_tile(),
-              if(slot.kind == :affiliate,
+              if(slot.kind == :book,
                 do: "border-rule hover:border-brand/60",
                 else: "border-dashed border-rule hover:border-brand/60"
               )
@@ -330,7 +341,7 @@ defmodule McpRegistryWeb.Layouts do
     """
   end
 
-  defp slot_href(%{kind: :affiliate}), do: "https://amzn.to/4cPvd4j"
+  defp slot_href(%{kind: :book}), do: ~p"/book"
   defp slot_href(%{kind: :enquiry}), do: enquiry_mailto()
 
   # Built rather than written out, so the subject and body are escaped once and
