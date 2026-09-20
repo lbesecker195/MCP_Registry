@@ -3,12 +3,11 @@
   "name": "io.github.lbesecker195/mcp-registry-search-find-mcp-servers-discover-install-mcp-tools-directory-catalog-marketplace",
   "title": "MCP Registry Search: Find, Discover & Install MCP Servers & Tools | Directory, Catalog, Marketplace",
   "description": "MCP registry & directory: search, find & install 31k+ MCP servers & tools. Catalog and marketplace.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "websiteUrl": "https://ai.mcpharbor.dev",
   "repository": {
-    "url": "https://github.com/lbesecker195/HoneyTrap",
-    "source": "github",
-    "subfolder": "mcp_registery"
+    "url": "https://github.com/lbesecker195/MCP_Registry",
+    "source": "github"
   },
   "remotes": [
     {

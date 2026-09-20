@@ -130,14 +130,11 @@ defmodule McpRegistryWeb.Layouts do
             <:link_item href={~p"/llms.txt"}>llms.txt</:link_item>
             <:link_item href={~p"/api/v0/servers"}>JSON API</:link_item>
             <:link_item href={~p"/mcp"}>MCP endpoint</:link_item>
-            <:link_item href="https://gateway.mcpharbor.dev">MCP Gateway</:link_item>
           </.footer_column>
 
           <.footer_column title="Project">
             <:link_item navigate={~p"/book"}>The book</:link_item>
-            <:link_item href="https://seriouslysimpleanalytics.com">
-              Seriously Simple Analytics
-            </:link_item>
+            <:link_item navigate={~p"/submit"}>Publish a server</:link_item>
           </.footer_column>
         </div>
 
@@ -161,15 +158,11 @@ defmodule McpRegistryWeb.Layouts do
               </a>
             </span>
           </span>
+          <%!-- The footer carries no outbound links at all. The analytics
+                credit stays as plain text: attribution is still owed and still
+                wanted, it just does not need to be a sitewide link. --%>
           <span>
-            Analytics by
-            <a
-              href="https://seriouslysimpleanalytics.com"
-              class="text-ink underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-brand"
-              rel="noopener"
-            >
-              Seriously Simple Analytics
-            </a>
+            Analytics by <span class="text-ink">Seriously Simple Analytics</span>
             &mdash; free, unlimited, one script tag. We use it and recommend it.
           </span>
         </div>
