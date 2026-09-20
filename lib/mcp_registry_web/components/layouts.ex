@@ -73,6 +73,7 @@ defmodule McpRegistryWeb.Layouts do
           <.nav_link navigate={~p"/servers"} current={@active == :servers}>servers</.nav_link>
           <.nav_link href={~p"/api/v0/servers"} current={false}>api</.nav_link>
           <.nav_link href={~p"/llms.txt"} current={false}>llms.txt</.nav_link>
+          <.nav_link href="https://gateway.mcpharbor.dev" current={false}>gateway</.nav_link>
           <span class="mx-1 hidden h-5 w-px bg-rule sm:block"></span>
           <.theme_toggle />
           <.link
@@ -129,6 +130,7 @@ defmodule McpRegistryWeb.Layouts do
             <:link_item href={~p"/llms.txt"}>llms.txt</:link_item>
             <:link_item href={~p"/api/v0/servers"}>JSON API</:link_item>
             <:link_item href={~p"/mcp"}>MCP endpoint</:link_item>
+            <:link_item href="https://gateway.mcpharbor.dev">MCP Gateway</:link_item>
           </.footer_column>
 
           <.footer_column title="Project">

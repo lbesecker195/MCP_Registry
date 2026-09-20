@@ -3,8 +3,10 @@ defmodule McpRegistryWeb.FooterTest do
 
   import Phoenix.LiveViewTest
 
-  # Everything the footer is allowed to point at off-site.
-  @allowed_hosts ["seriouslysimpleanalytics.com"]
+  # Everything the footer is allowed to point at off-site. gateway.mcpharbor.dev
+  # is ours -- a sister property on the same root domain -- so it counts as an
+  # internal link in spirit even though the host differs.
+  @allowed_hosts ["seriouslysimpleanalytics.com", "gateway.mcpharbor.dev"]
 
   defp footer_html(conn) do
     {:ok, _view, html} = live(conn, ~p"/servers")
@@ -12,7 +14,9 @@ defmodule McpRegistryWeb.FooterTest do
     footer
   end
 
-  test "the footer links off-site only to Seriously Simple Analytics", %{conn: conn} do
+  test "the footer links off-site only to our own properties and the analytics vendor", %{
+    conn: conn
+  } do
     hosts =
       footer_html(conn)
       |> then(&Regex.scan(~r|href="https?://([^/"]+)|, &1))
@@ -23,6 +27,14 @@ defmodule McpRegistryWeb.FooterTest do
            "unexpected external hosts in the footer: #{inspect(hosts -- @allowed_hosts)}"
 
     assert "seriouslysimpleanalytics.com" in hosts
+    assert "gateway.mcpharbor.dev" in hosts
+  end
+
+  test "the header links to the gateway", %{conn: conn} do
+    {:ok, _view, html} = live(conn, ~p"/servers")
+    [header] = Regex.run(~r|<header.*?</header>|s, html)
+
+    assert header =~ "https://gateway.mcpharbor.dev"
   end
 
   test "the DB-IP credit follows whether the data is actually loaded", %{conn: conn} do
