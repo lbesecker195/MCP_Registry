@@ -3,10 +3,10 @@ defmodule McpRegistryWeb.FooterTest do
 
   import Phoenix.LiveViewTest
 
-  # Everything the footer is allowed to point at off-site. gateway.mcpharbor.dev
-  # is ours -- a sister property on the same root domain -- so it counts as an
-  # internal link in spirit even though the host differs.
-  @allowed_hosts ["seriouslysimpleanalytics.com", "gateway.mcpharbor.dev"]
+  # The footer carries no outbound links at all -- not to third parties, not to
+  # our own properties. The one exception is the DB-IP credit, which is a
+  # CC BY 4.0 licence condition and renders only while that data is loaded.
+  @allowed_hosts []
 
   defp footer_html(conn) do
     {:ok, _view, html} = live(conn, ~p"/servers")
@@ -14,9 +14,7 @@ defmodule McpRegistryWeb.FooterTest do
     footer
   end
 
-  test "the footer links off-site only to our own properties and the analytics vendor", %{
-    conn: conn
-  } do
+  test "the footer carries no outbound links", %{conn: conn} do
     hosts =
       footer_html(conn)
       |> then(&Regex.scan(~r|href="https?://([^/"]+)|, &1))
@@ -25,9 +23,15 @@ defmodule McpRegistryWeb.FooterTest do
 
     assert hosts -- @allowed_hosts == [],
            "unexpected external hosts in the footer: #{inspect(hosts -- @allowed_hosts)}"
+  end
 
-    assert "seriouslysimpleanalytics.com" in hosts
-    assert "gateway.mcpharbor.dev" in hosts
+  test "the analytics credit survives as text, without a link", %{conn: conn} do
+    footer = footer_html(conn)
+
+    # Attribution is still owed and still wanted; it just no longer needs to be
+    # a sitewide outbound link.
+    assert footer =~ "Seriously Simple Analytics"
+    refute footer =~ "seriouslysimpleanalytics.com"
   end
 
   test "the header links to the gateway", %{conn: conn} do
