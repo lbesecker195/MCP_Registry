@@ -6,4 +6,6 @@ This directory holds two Plug modules used in the Phoenix request pipeline.
 
 `APIAnalytics` runs only in the `/api/v0` router pipeline. It wraps the list, show, create, and review actions and reports each as a `tool_called` event to Seriously Simple Analytics — action name, status, latency, and a coarse client name, never parameters or headers. It does not run on `/mcp`, which has no analytics plug of its own.
 
-Neither module renders markup, so a bug here shows up as skewed analytics or a wrongly applied rate limit, not as a broken page on [the live directory](https://ai.mcpharbor.dev/).
+`IndexNowKey` runs in the endpoint ahead of the router and answers `GET /<key>.txt` with the IndexNow key. That is how Bing, Yandex and the other IndexNow engines check that URLs submitted by `McpRegistry.Discovery` come from this host. It has to be a plug, because the file name is the key and comes from runtime config.
+
+None of these modules renders markup, so a bug here shows up as skewed analytics or a wrongly applied rate limit, not as a broken page on [the live directory](https://ai.mcpharbor.dev/).

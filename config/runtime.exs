@@ -192,6 +192,12 @@ end
 if config_env() == :prod do
   config :mcp_registry, :official_registry,
     sync_enabled: System.get_env("OFFICIAL_REGISTRY_SYNC", "true") not in ~w(false 0)
+
+  # IndexNow and WebSub pushes. On unless DISCOVERY_PUSH is false or 0. The
+  # IndexNow key is derived from SECRET_KEY_BASE unless INDEXNOW_KEY is set.
+  config :mcp_registry, :discovery,
+    enabled: System.get_env("DISCOVERY_PUSH", "true") not in ~w(false 0),
+    indexnow_key: System.get_env("INDEXNOW_KEY")
 end
 
 if account_id = System.get_env("SSA_ACCOUNT_ID") do

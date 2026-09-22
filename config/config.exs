@@ -93,6 +93,19 @@ config :mcp_registry, :official_registry,
   initial_delay_ms: :timer.minutes(2),
   req_options: []
 
+# Pushes new and changed listing pages to search engines (McpRegistry.Discovery).
+# Off by default so a dev or test sync never announces localhost URLs; the key
+# is derived from secret_key_base unless :indexnow_key is set.
+config :mcp_registry, :discovery,
+  enabled: false,
+  indexnow_endpoint: "https://api.indexnow.org/indexnow",
+  indexnow_key: nil,
+  websub_hubs: ["https://pubsubhubbub.appspot.com/"],
+  max_urls_per_run: 10_000,
+  batch_window_ms: :timer.minutes(1),
+  batch_pause_ms: :timer.seconds(5),
+  req_options: []
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

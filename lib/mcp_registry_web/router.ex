@@ -47,6 +47,16 @@ defmodule McpRegistryWeb.Router do
     delete "/mcp", MCPController, :method_not_allowed
   end
 
+  # What crawlers read to find listings: robots.txt, the sitemap and the feed
+  # the WebSub hubs fetch. No browser pipeline, so no session cookie, and they
+  # stay cacheable. The IndexNow key file is served by a plug in the endpoint.
+  scope "/", McpRegistryWeb do
+    get "/robots.txt", SitemapController, :robots
+    get "/sitemap.xml", SitemapController, :index
+    get "/sitemaps/:file", SitemapController, :show
+    get "/feed.xml", FeedController, :show
+  end
+
   # JSON API, shaped after the official MCP registry's /v0 endpoints.
   scope "/api/v0", McpRegistryWeb.API, as: :api do
     pipe_through :api

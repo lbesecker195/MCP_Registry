@@ -48,6 +48,11 @@ defmodule McpRegistry.ContentGenerator do
       article_generated_at: DateTime.utc_now()
     })
     |> Repo.update()
+    |> tap(fn
+      # The article is most of the page, so search engines should read it again.
+      {:ok, %Server{status: "active", name: name}} -> McpRegistry.Discovery.announce_later([name])
+      _ -> :ok
+    end)
   end
 
   defp get_server!(name) when is_binary(name) do

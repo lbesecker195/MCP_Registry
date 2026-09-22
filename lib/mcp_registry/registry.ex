@@ -4,6 +4,7 @@ defmodule McpRegistry.Registry do
 
   alias McpRegistry.Analytics
   alias McpRegistry.Cache
+  alias McpRegistry.Discovery
   alias McpRegistry.Repo
   alias McpRegistry.Registry.Server
 
@@ -83,6 +84,7 @@ defmodule McpRegistry.Registry do
         _ ->
           :ok
       end)
+      |> announce_if_live()
     end
   end
 
@@ -92,7 +94,11 @@ defmodule McpRegistry.Registry do
 
   def approve_server(name) when is_binary(name) do
     with {:ok, server} <- fetch_server(name) do
-      server |> Ecto.Changeset.change(status: "active") |> Repo.update() |> invalidate_on_write()
+      server
+      |> Ecto.Changeset.change(status: "active")
+      |> Repo.update()
+      |> invalidate_on_write()
+      |> announce_if_live()
     end
   end
 
@@ -124,12 +130,50 @@ defmodule McpRegistry.Registry do
 
   defp invalidate_on_write(result), do: result
 
+  # A listing that has just gone live is new to search engines and to the feed.
+  defp announce_if_live({:ok, %Server{status: "active", name: name}} = result) do
+    Discovery.announce_later([name], feed: true)
+    result
+  end
+
+  defp announce_if_live(result), do: result
+
   defp check_queue_capacity("pending") do
     max = Application.get_env(:mcp_registry, :submissions, [])[:max_pending] || 500
     if count_servers(status: "pending") >= max, do: {:error, :queue_full}, else: :ok
   end
 
   defp check_queue_capacity(_status), do: :ok
+
+  @doc """
+  One page of `{name, updated_at}` for active listings, in a stable order, for
+  the sitemap and the IndexNow backfill. Selects two columns only: whole rows
+  carry the article text and tool lists.
+  """
+  def sitemap_entries(page, per_page) when page >= 1 do
+    Server
+    |> where([s], s.status == "active")
+    |> order_by([s], asc: s.id)
+    |> offset(^((page - 1) * per_page))
+    |> limit(^per_page)
+    |> select([s], {s.name, s.updated_at})
+    |> Repo.all()
+  end
+
+  @doc """
+  The `n` active listings added most recently, newest first, for the feed.
+  Cached like the catalogue figures, so the sync and every approval refresh it.
+  """
+  def newest_servers(n) do
+    Cache.fetch({:newest_servers, n}, fn ->
+      Server
+      |> where([s], s.status == "active")
+      |> order_by([s], desc: s.inserted_at, desc: s.id)
+      |> limit(^n)
+      |> select([s], struct(s, [:name, :title, :description, :inserted_at, :updated_at]))
+      |> Repo.all()
+    end)
+  end
 
   @doc """
   The most-used tags among active servers, as `{tag, count}` pairs.

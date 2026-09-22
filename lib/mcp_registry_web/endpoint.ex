@@ -41,6 +41,11 @@ defmodule McpRegistryWeb.Endpoint do
     cookie_key: "request_logger"
 
   plug Plug.RequestId
+
+  # Before the geo block and the router: a search engine confirming the key
+  # must always get it, and the router's catch-all would 301 it home.
+  plug McpRegistryWeb.Plugs.IndexNowKey
+
   plug McpRegistryWeb.Plugs.ClientIP
   # Immediately after ClientIP, so the lookup sees the real client rather than
   # nginx, and before parsing or the session, so a blocked request costs almost
