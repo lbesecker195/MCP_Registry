@@ -16,6 +16,11 @@
   `official`); never let user input set it. Test sync changes with the
   `Req.Test` stub in `test/mcp_registry/official_registry_test.exs`, and try
   real data locally with `mix registry.sync_official`.
+- Search engines hear about new, changed and removed listing pages from
+  `McpRegistry.Discovery`: IndexNow (Bing, Yandex, Naver, Seznam, Yep) and a
+  WebSub ping for `/feed.xml` (Google). The sync announces its own changes;
+  request paths go through `Discovery.announce_later/2`. It is off outside
+  production. `/sitemap.xml` and `robots.txt` are rendered, not static.
 - The MCP endpoint (`/mcp`) is stateless Streamable HTTP. Tool descriptions in
   `McpRegistryWeb.MCP.Tools` are read by models; keep them precise.
 - Analytics goes through `McpRegistry.Analytics.track/2` only. Never put

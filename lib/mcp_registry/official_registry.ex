@@ -23,11 +23,15 @@ defmodule McpRegistry.OfficialRegistry do
   Upstream deletions remove `official` listings. After a successful full sync,
   `official` listings that no longer appear upstream are removed as well,
   unless the run saw suspiciously few servers.
+
+  Every run then hands the listings whose pages it added, changed or removed
+  to `McpRegistry.Discovery`, which tells search engines.
   """
   import Ecto.Query
   require Logger
 
   alias McpRegistry.Analytics
+  alias McpRegistry.Discovery
   alias McpRegistry.OfficialRegistry.SyncRun
   alias McpRegistry.Registry.{Manifest, Server}
   alias McpRegistry.Repo
@@ -135,27 +139,25 @@ defmodule McpRegistry.OfficialRegistry do
 
     Logger.info("Official registry sync started (#{mode})")
 
+    empty = %{
+      stats: Map.new(@counters, &{&1, 0}),
+      touched: %{new: [], updated: [], removed: []}
+    }
+
     outcome =
       try do
-        pages(nil, params, %{
-          run_at: started_at,
-          stats: Map.new(@counters, &{&1, 0}),
-          seen: MapSet.new()
-        })
+        pages(nil, params, Map.merge(empty, %{run_at: started_at, seen: MapSet.new()}))
       rescue
-        exception ->
-          {:error, Exception.message(exception), %{stats: Map.new(@counters, &{&1, 0})}}
+        exception -> {:error, Exception.message(exception), empty}
       end
 
-    {status, error, stats} =
+    {status, error, state} =
       case outcome do
-        {:ok, state} ->
-          stats = if mode == :full, do: sweep(state), else: state.stats
-          {"ok", nil, stats}
-
-        {:error, reason, state} ->
-          {"error", to_string(reason), state.stats}
+        {:ok, state} -> {"ok", nil, if(mode == :full, do: sweep(state), else: state)}
+        {:error, reason, state} -> {"error", to_string(reason), state}
       end
+
+    stats = state.stats
 
     Repo.update!(
       Ecto.Changeset.change(run,
@@ -172,6 +174,11 @@ defmodule McpRegistry.OfficialRegistry do
 
     Analytics.track(:registry_synced, Map.merge(%{mode: mode, outcome: status}, stats))
     Logger.info("Official registry sync #{status} (#{mode}): #{inspect(stats)}")
+
+    # What a failed run wrote before it stopped is live too, so announce it
+    # either way. New pages go first: they are the ones no crawler has seen.
+    %{new: new, updated: updated, removed: removed} = state.touched
+    Discovery.announce(new ++ removed ++ updated, feed: new != [])
 
     if status == "ok", do: {:ok, stats}, else: {:error, error, stats}
   end
@@ -249,6 +256,7 @@ defmodule McpRegistry.OfficialRegistry do
 
         state = update_in(state.stats[outcome], &(&1 + 1))
         state = if name, do: update_in(state.seen, &MapSet.put(&1, name)), else: state
+        state = touch(state, outcome, name)
         {state, if(outcome in @keep_outcomes and name, do: [name | unchanged], else: unchanged)}
       end)
 
@@ -261,6 +269,15 @@ defmodule McpRegistry.OfficialRegistry do
 
     state
   end
+
+  # Listings whose public page appeared, changed or went away, for `Discovery`.
+  # A replaced pending listing had a noindexed page that is now live.
+  defp touch(state, outcome, name) when outcome in [:inserted, :replaced_pending],
+    do: update_in(state.touched.new, &[name | &1])
+
+  defp touch(state, :updated, name), do: update_in(state.touched.updated, &[name | &1])
+  defp touch(state, :deleted, name), do: update_in(state.touched.removed, &[name | &1])
+  defp touch(state, _outcome, _name), do: state
 
   defp apply_entry(%{"server" => %{"name" => name} = json} = entry, state) when is_binary(name) do
     name = name |> String.trim() |> String.downcase()
@@ -339,23 +356,25 @@ defmodule McpRegistry.OfficialRegistry do
   # After a full sync, official listings not seen upstream are gone. Skip the
   # sweep if the run saw far fewer servers than we hold, which would point to
   # an upstream problem rather than mass deletion.
-  defp sweep(%{stats: stats, seen: seen, run_at: run_at}) do
+  defp sweep(%{stats: stats, seen: seen, run_at: run_at} = state) do
     held = Server |> where([s], s.origin == "official") |> Repo.aggregate(:count)
 
     if MapSet.size(seen) * 2 >= held do
-      {removed, _} =
+      {removed, names} =
         Server
         |> where([s], s.origin == "official")
         |> where([s], is_nil(s.synced_at) or s.synced_at < ^run_at)
+        |> select([s], s.name)
         |> Repo.delete_all()
 
-      Map.put(stats, :removed_missing, removed)
+      state = update_in(state.touched.removed, &(names ++ &1))
+      %{state | stats: Map.put(stats, :removed_missing, removed)}
     else
       Logger.warning(
         "Official registry sync saw #{MapSet.size(seen)} servers but holds #{held}; skipping sweep"
       )
 
-      Map.put(stats, :sweep_skipped, true)
+      %{state | stats: Map.put(stats, :sweep_skipped, true)}
     end
   end
 

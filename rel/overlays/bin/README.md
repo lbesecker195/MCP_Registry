@@ -3,5 +3,6 @@ Shell and `.bat` scripts that `mix release` copies into the compiled Elixir rele
 - `server` / `server.bat` set `PHX_SERVER=true` and exec the release executable's `start` command, which is what actually boots the Phoenix application in production.
 - `migrate` / `migrate.bat` run `McpRegistry.Release.migrate` to apply pending Ecto database migrations.
 - `seed` runs `McpRegistry.Release.seed` to load seed data into the database.
+- `announce` calls `McpRegistry.Discovery.announce_all/0` inside the running node over `rpc`. It submits every listing to IndexNow and pings the WebSub hub, as a one-off backfill. After that, each sync announces only its own changes.
 
 No direct effect on the live site: these are release-packaging and deploy-time scripts, not page code, so there is no specific page on ai.mcpharbor.dev to link to. Their effect is indirect but foundational — running `server` is how the whole site comes online, and a failed `migrate` would break every page that reads from the database — but no single URL is tied to this directory.

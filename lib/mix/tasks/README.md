@@ -5,3 +5,5 @@ This directory holds the project's Mix tasks: command-line jobs run manually or 
 - `content.generate.ex` drives `McpRegistry.ContentGenerator` to write the technical article shown on an individual listing page, such as the [Context7 server page](https://ai.mcpharbor.dev/servers/io.github.upstash%2Fcontext7).
 
 None of these tasks run automatically per request, so they have no direct effect on request latency or uptime. Their impact shows up indirectly: a stale sync means missing or outdated servers on the site, a server stuck unapproved never appears publicly, and a failed content run leaves a listing without its article text. Together they're the mechanism that keeps the live directory's data and per-server writeups current.
+
+`discovery.announce.ex` sends every active listing, and the pages that are not listings, to IndexNow in batches of 10,000, then pings the WebSub hub for [the new-servers feed](https://ai.mcpharbor.dev/feed.xml). It is a one-off backfill. After it, each sync announces only what it changed. `--dry-run` prints what would be sent. Production runs the same thing as the release's `bin/announce`.

@@ -3,7 +3,8 @@ query logic for every listing (`Registry`, `Registry.Server`), the sync
 engine that mirrors roughly 31,000 servers from the official MCP Registry
 (`OfficialRegistry` and its `Scheduler`), install-snippet and `server.json`
 generation (`Registry.Install`, `Registry.Manifest`), live README/meta
-enrichment for show pages (`Registry.RemoteContent`), plus rate limiting
+enrichment for show pages (`Registry.RemoteContent`), search engine pushes through IndexNow and WebSub (`Discovery` and its
+`Batcher`), plus rate limiting
 (`RateLimiter`), Seriously Simple Analytics reporting (`Analytics`), saved
 article text (`ContentGenerator`), and OTP startup/release plumbing
 (`Application`, `Release`, `Repo`).

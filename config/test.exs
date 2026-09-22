@@ -39,6 +39,12 @@ config :mcp_registry, :submissions,
   per_client_per_hour: 10_000,
   max_pending: 10_000
 
+# Search engine pushes are stubbed with Req.Test; tests that want them on
+# enable them for themselves.
+config :mcp_registry, :discovery,
+  batch_pause_ms: 0,
+  req_options: [plug: {Req.Test, McpRegistry.Discovery}, retry: false]
+
 # The official registry is stubbed with Req.Test in tests.
 config :mcp_registry, :official_registry,
   page_delay_ms: 0,
