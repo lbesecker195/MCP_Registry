@@ -23,11 +23,13 @@ defmodule McpRegistryWeb.SitemapController do
   @servers_per_tool_file 150
   # Twelve or so agent pages a listing, so 3,000 listings is about 36,000 URLs.
   @servers_per_agent_file 3_000
-  # Prompts and resources run far fewer per listing than tools -- a handful
-  # rather than eighteen -- so more listings fit in a file at the same budget.
-  # Held at 300 because the distribution is skewed: most listings have a few
-  # and one has 195, and a file over 50,000 URLs is rejected in silence.
-  @servers_per_capability_file 300
+  # Prompts and resources are packed to a URL budget rather than a listing
+  # count, because the distribution is far too skewed for a count to work: one
+  # listing has 960 resources and most have a handful. At 300 listings a file
+  # that produced 30,187 URLs in one file and 56,798 in another -- and a file
+  # over 50,000 is rejected in silence. 40,000 leaves room for the estimate to
+  # be generous without approaching the limit.
+  @urls_per_capability_file 40_000
 
   # `/live` is LiveView's transport, not content. Its long-poll fallback carries
   # a fresh CSRF token in the query string, so every fetch mints a URL that has
@@ -166,8 +168,13 @@ defmodule McpRegistryWeb.SitemapController do
          true <- within(page, capability_files(kind)) do
       base = McpRegistryWeb.Endpoint.url()
 
+      chunks = Registry.capability_chunks(kind, @urls_per_capability_file)
+
       kind
-      |> Registry.servers_with(page, @servers_per_capability_file)
+      |> Registry.servers_with(
+        chunks |> Enum.take(page - 1) |> Enum.sum(),
+        Enum.at(chunks, page - 1)
+      )
       |> Enum.flat_map(fn {server, items, updated_at} ->
         clients = Clients.ids(server)
 
@@ -195,7 +202,7 @@ defmodule McpRegistryWeb.SitemapController do
   end
 
   defp capability_files(kind),
-    do: ceil(Registry.count_servers_with(kind) / @servers_per_capability_file)
+    do: length(Registry.capability_chunks(kind, @urls_per_capability_file))
 
   defp urlset(entries) do
     [
