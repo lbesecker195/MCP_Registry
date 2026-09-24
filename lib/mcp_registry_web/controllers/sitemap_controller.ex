@@ -13,6 +13,7 @@ defmodule McpRegistryWeb.SitemapController do
 
   alias McpRegistry.Discovery
   alias McpRegistry.Registry
+  alias McpRegistry.Registry.Clients
   alias McpRegistryWeb.Routes
 
   @per_file Discovery.batch_size()
@@ -26,7 +27,9 @@ defmodule McpRegistryWeb.SitemapController do
   def index(conn, _params) do
     base = McpRegistryWeb.Endpoint.url()
 
-    files = ["pages.xml" | Enum.map(1..server_files(), &"servers-#{&1}.xml")]
+    files =
+      ["pages.xml" | Enum.map(1..server_files(), &"servers-#{&1}.xml")] ++
+        if(Registry.servers_with_tools() == [], do: [], else: ["tools.xml"])
 
     [
       ~s(<?xml version="1.0" encoding="UTF-8"?>\n),
@@ -40,6 +43,28 @@ defmodule McpRegistryWeb.SitemapController do
   def show(conn, %{"file" => "pages.xml"}) do
     Discovery.static_urls()
     |> Enum.map(&{&1, nil})
+    |> urlset()
+    |> send_xml(conn)
+  end
+
+  # Every tool page, and every tool-and-client page, in one file. The tools
+  # silo is small -- a few hundred names across the whole catalogue -- so it
+  # does not need the chunking the listings do.
+  def show(conn, %{"file" => "tools.xml"}) do
+    base = McpRegistryWeb.Endpoint.url()
+
+    Registry.servers_with_tools()
+    |> Enum.flat_map(fn server ->
+      client_ids = Enum.map(Clients.configs(server), & &1.id)
+
+      [{base <> Routes.tools_path(server), server.updated_at}] ++
+        Enum.flat_map(server.tools, fn tool ->
+          [{base <> Routes.tool_path(server, tool), server.updated_at}] ++
+            Enum.map(client_ids, fn id ->
+              {base <> Routes.client_path(server, tool, id), server.updated_at}
+            end)
+        end)
+    end)
     |> urlset()
     |> send_xml(conn)
   end

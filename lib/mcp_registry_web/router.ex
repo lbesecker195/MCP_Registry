@@ -37,6 +37,12 @@ defmodule McpRegistryWeb.Router do
   scope "/", McpRegistryWeb do
     pipe_through [:browser, :known_server]
 
+    # Before the glob: `*name` would otherwise swallow /tools and everything
+    # under it as though it were part of the listing's name.
+    live "/servers/:namespace/:name/tools", ServerLive.Tools, :index
+    live "/servers/:namespace/:name/tools/:tool", ServerLive.Tools, :show
+    live "/servers/:namespace/:name/tools/:tool/:client", ServerLive.Tools, :client
+
     live "/servers/*name", ServerLive.Show, :show
   end
 

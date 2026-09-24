@@ -18,7 +18,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
   use McpRegistryWeb, :live_view
 
   alias McpRegistry.Registry
-  alias McpRegistry.Registry.{Clients, Install, Manifest, RemoteContent, Server}
+  alias McpRegistry.Registry.{Clients, Install, Manifest, RemoteContent, Server, Tool}
 
   @impl true
   def mount(%{"name" => segments}, _session, socket) do
@@ -379,6 +379,19 @@ defmodule McpRegistryWeb.ServerLive.Show do
               discover them on the handshake.
             </p>
 
+            <p :if={@tools != []} class="pt-1">
+              <.link
+                navigate={tools_path(@server)}
+                class="group inline-flex items-center gap-1.5 font-mono text-xs text-brand"
+              >
+                All {length(@tools)} tools, one page each
+                <.icon
+                  name="hero-arrow-right-micro"
+                  class="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                />
+              </.link>
+            </p>
+
             <p :if={@tools != []} class="text-[11px] text-pretty text-dim">
               <b class="font-medium text-ink">Mutating</b>
               and <b class="font-medium text-ink">Read-only</b>
@@ -616,6 +629,14 @@ defmodule McpRegistryWeb.ServerLive.Show do
 
   # --- Client switching ------------------------------------------------------
 
+  # Tool names are all the registry stores; `McpRegistry.Registry.Tool` derives
+  # the rest and is shared with the tool pages, so the two cannot disagree.
+  defp decorate_tools(tools) do
+    Enum.map(tools, fn tool ->
+      %{name: tool, kind: Tool.kind(tool), gloss: Tool.gloss(tool)}
+    end)
+  end
+
   defp default_client([first | _]), do: first.id
   defp default_client(_), do: nil
 
@@ -659,43 +680,6 @@ defmodule McpRegistryWeb.ServerLive.Show do
   end
 
   # --- Tools -----------------------------------------------------------------
-
-  # A tool's name is the only thing the registry stores about it -- there are no
-  # schemas here -- so the badge is read off the leading verb and the gloss is
-  # the name itself, punctuation removed. Neither invents information; an
-  # unrecognised verb simply gets no badge.
-  @mutating_verbs ~w(create update delete remove write set add insert put patch
-                     send post publish merge push upload move rename execute run
-                     start stop restart cancel close edit append clear reset
-                     revoke assign apply install uninstall import sync)
-
-  @readonly_verbs ~w(get list search read fetch find query describe show view
-                     lookup count check resolve inspect export download browse
-                     status)
-
-  defp decorate_tools(tools) do
-    Enum.map(tools, fn tool ->
-      %{name: tool, kind: tool_kind(tool), gloss: gloss(tool)}
-    end)
-  end
-
-  defp tool_kind(tool) do
-    verb = tool |> String.downcase() |> String.split(~r/[^a-z0-9]+/, trim: true) |> List.first()
-
-    cond do
-      verb in @mutating_verbs -> :mutating
-      verb in @readonly_verbs -> :readonly
-      true -> :unknown
-    end
-  end
-
-  defp gloss(tool) do
-    tool
-    |> String.replace(~r/[_\-.]+/, " ")
-    |> String.replace(~r/([a-z0-9])([A-Z])/, "\\1 \\2")
-    |> String.downcase()
-    |> String.trim()
-  end
 
   defp filtered_tools(tools, query) do
     case query |> to_string() |> String.trim() |> String.downcase() do

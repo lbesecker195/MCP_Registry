@@ -161,6 +161,21 @@ defmodule McpRegistry.Registry do
   end
 
   @doc """
+  Active listings that declare at least one tool, for the tools sitemap.
+
+  Deliberately unpaginated: the whole catalogue holds only a few hundred tool
+  names, so this is a short list, not a scan. If tool coverage ever grows to
+  catalogue scale this has to become a paged query like `sitemap_entries/2`.
+  """
+  def servers_with_tools do
+    Server
+    |> where([s], s.status == "active")
+    |> where([s], fragment("cardinality(?) > 0", s.tools))
+    |> order_by([s], asc: s.id)
+    |> Repo.all()
+  end
+
+  @doc """
   The `n` active listings added most recently, newest first, for the feed.
   Cached like the catalogue figures, so the sync and every approval refresh it.
   """

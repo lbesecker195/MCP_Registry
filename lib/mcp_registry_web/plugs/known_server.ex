@@ -30,7 +30,12 @@ defmodule McpRegistryWeb.Plugs.KnownServer do
   @impl Plug
   def call(%Plug.Conn{path_info: ["servers" | segments]} = conn, _opts)
       when segments != [] do
-    if Registry.server_exists?(Enum.join(segments, "/")) do
+    # The first two segments are the listing; anything after is a sub-page such
+    # as /tools or /tools/<tool>/<client>. A name is always exactly
+    # `namespace/short-name` -- the changeset regex allows one slash and no more
+    # -- so taking two is not a guess. Joining every segment instead would make
+    # each sub-page look like a listing that does not exist, and 301 it home.
+    if Registry.server_exists?(segments |> Enum.take(2) |> Enum.join("/")) do
       conn
     else
       conn
