@@ -37,11 +37,23 @@ defmodule McpRegistry.Probe do
     * `:unsupported` — reachable, but not answering MCP
     * `:unreachable` — DNS, TLS, timeout, 5xx
   """
+  @type listing :: %{
+          tools: [String.t()],
+          prompts: [String.t()],
+          resources: [String.t()]
+        }
+
   @type result ::
-          {:ok, [String.t()]}
+          {:ok, listing()}
           | {:error, :not_remote | :unauthorized | :unsupported | :unreachable}
 
-  @doc "Asks a listing's endpoint for its tools."
+  @doc """
+  Asks a listing's endpoint what it exposes: tools, prompts and resources.
+
+  Returns `{:ok, %{tools: [...], prompts: [...], resources: [...]}}`. A server
+  that answers for tools but errors on prompts simply reports no prompts --
+  the three lists are independent, and one refusal should not discard the rest.
+  """
   @spec probe(Server.t()) :: result()
   def probe(%Server{} = server) do
     if Server.remote?(server) and is_binary(server.remote_url) do
@@ -54,8 +66,15 @@ defmodule McpRegistry.Probe do
   defp run(url) do
     with {:ok, session} <- initialize(url),
          :ok <- initialized(url, session),
-         {:ok, tools} <- list_tools(url, session) do
-      {:ok, tools}
+         {:ok, tools} <- list(url, session, "tools/list", "tools") do
+      {:ok,
+       %{
+         tools: tools,
+         # Best effort: a server that has no prompts, or refuses the call, is
+         # reported as having none rather than failing the whole probe.
+         prompts: list(url, session, "prompts/list", "prompts") |> ok_or_empty(),
+         resources: list(url, session, "resources/list", "resources") |> ok_or_empty()
+       }}
     end
   rescue
     # A malformed response must never take down the run that is walking the
@@ -104,11 +123,14 @@ defmodule McpRegistry.Probe do
     :ok
   end
 
-  defp list_tools(url, session) do
-    case post(url, %{jsonrpc: "2.0", id: 2, method: "tools/list"}, session) do
+  defp ok_or_empty({:ok, items}), do: items
+  defp ok_or_empty(_), do: []
+
+  defp list(url, session, method, key) do
+    case post(url, %{jsonrpc: "2.0", id: 2, method: method}, session) do
       {:ok, %Req.Response{status: status, body: raw}} when status in 200..299 ->
         case decode(raw) do
-          %{"result" => %{"tools" => tools}} when is_list(tools) -> {:ok, names(tools)}
+          %{"result" => %{^key => items}} when is_list(items) -> {:ok, names(items)}
           _ -> {:error, :unsupported}
         end
 
@@ -123,10 +145,12 @@ defmodule McpRegistry.Probe do
     end
   end
 
-  defp names(tools) do
-    tools
+  # A resource is named by uri, a tool and a prompt by name.
+  defp names(items) do
+    items
     |> Enum.map(fn
       %{"name" => name} when is_binary(name) -> String.trim(name)
+      %{"uri" => uri} when is_binary(uri) -> String.trim(uri)
       _ -> nil
     end)
     |> Enum.reject(&(&1 in [nil, ""]))

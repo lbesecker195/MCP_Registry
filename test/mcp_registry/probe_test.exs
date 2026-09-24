@@ -61,7 +61,7 @@ defmodule McpRegistry.ProbeTest do
         end
       end)
 
-      assert {:ok, ["search_docs", "get_page"]} = Probe.probe(remote_fixture())
+      assert {:ok, %{tools: ["search_docs", "get_page"]}} = Probe.probe(remote_fixture())
     end
 
     test "reads a Streamable HTTP server that answers with SSE" do
@@ -80,7 +80,7 @@ defmodule McpRegistry.ProbeTest do
         |> Plug.Conn.send_resp(200, "event: message\ndata: #{Jason.encode!(payload)}\n\n")
       end)
 
-      assert {:ok, ["only_tool"]} = Probe.probe(remote_fixture())
+      assert {:ok, %{tools: ["only_tool"]}} = Probe.probe(remote_fixture())
     end
 
     test "an auth-gated endpoint is reported as such, not as broken" do
@@ -93,6 +93,52 @@ defmodule McpRegistry.ProbeTest do
       stub(fn conn -> json(conn, %{hello: "world"}) end)
 
       assert {:error, :unsupported} = Probe.probe(remote_fixture())
+    end
+
+    test "prompts and resources are collected alongside the tools" do
+      stub(fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        case Jason.decode!(body)["method"] do
+          "initialize" ->
+            json(conn, %{jsonrpc: "2.0", id: 1, result: %{}})
+
+          "tools/list" ->
+            json(conn, %{jsonrpc: "2.0", id: 2, result: %{tools: [%{name: "search"}]}})
+
+          "prompts/list" ->
+            json(conn, %{jsonrpc: "2.0", id: 2, result: %{prompts: [%{name: "summarise"}]}})
+
+          "resources/list" ->
+            # A resource is identified by uri, not name.
+            json(conn, %{jsonrpc: "2.0", id: 2, result: %{resources: [%{uri: "file:///readme"}]}})
+
+          _ ->
+            Plug.Conn.send_resp(conn, 202, "")
+        end
+      end)
+
+      assert {:ok, found} = Probe.probe(remote_fixture())
+      assert found.tools == ["search"]
+      assert found.prompts == ["summarise"]
+      assert found.resources == ["file:///readme"]
+    end
+
+    test "a server that refuses prompts still reports its tools" do
+      # Observed on live endpoints: tools/list answers, prompts/list errors.
+      # One refused call must not discard the rest of the probe.
+      stub(fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        case Jason.decode!(body)["method"] do
+          "initialize" -> json(conn, %{jsonrpc: "2.0", id: 1, result: %{}})
+          "tools/list" -> json(conn, %{jsonrpc: "2.0", id: 2, result: %{tools: [%{name: "a"}]}})
+          "prompts/list" -> json(conn, %{jsonrpc: "2.0", id: 2, error: %{code: -32_601}})
+          _ -> Plug.Conn.send_resp(conn, 202, "")
+        end
+      end)
+
+      assert {:ok, %{tools: ["a"], prompts: [], resources: []}} = Probe.probe(remote_fixture())
     end
 
     test "a packaged server is never executed to find out" do
@@ -157,6 +203,33 @@ defmodule McpRegistry.ProbeTest do
 
       assert %{ok: 1} = Runner.run_batch(limit: 10)
       assert Repo.one(Server).tools == ["declared_a"]
+    end
+
+    test "having no prompts is recorded, because it is the finding" do
+      # Tools are protected from an empty answer because a publisher declared
+      # them. Nothing declares prompts, so the probe is the only source and
+      # "asked, and has none" has to be storable -- otherwise it is
+      # indistinguishable from never asked, which is the count being collected.
+      remote_fixture(%{tools: ["declared_a"]})
+
+      stub(fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        case Jason.decode!(body)["method"] do
+          "initialize" -> json(conn, %{jsonrpc: "2.0", id: 1, result: %{}})
+          "tools/list" -> json(conn, %{jsonrpc: "2.0", id: 2, result: %{tools: []}})
+          "resources/list" -> json(conn, %{jsonrpc: "2.0", id: 2, result: %{resources: []}})
+          _ -> Plug.Conn.send_resp(conn, 202, "")
+        end
+      end)
+
+      assert %{ok: 1} = Runner.run_batch(limit: 10)
+
+      server = Repo.one(Server)
+      assert server.tools == ["declared_a"]
+      assert server.prompts == []
+      assert server.resources == []
+      assert server.probe_status == "ok"
     end
 
     test "packaged listings are never picked up by the runner" do

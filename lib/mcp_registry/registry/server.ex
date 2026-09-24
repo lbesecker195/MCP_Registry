@@ -34,6 +34,8 @@ defmodule McpRegistry.Registry.Server do
     field :env_vars, {:array, :string}, default: []
     field :tags, {:array, :string}, default: []
     field :tools, {:array, :string}, default: []
+    field :prompts, {:array, :string}, default: []
+    field :resources, {:array, :string}, default: []
     field :origin, :string, default: "local"
     field :source_updated_at, :utc_datetime_usec
     field :synced_at, :utc_datetime_usec
