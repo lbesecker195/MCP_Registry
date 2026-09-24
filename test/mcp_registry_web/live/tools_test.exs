@@ -100,16 +100,29 @@ defmodule McpRegistryWeb.ServerLive.ToolsTest do
     assert redirected_to(conn, 301) == "/"
   end
 
-  test "the tools sitemap carries the index, tool and client URLs", %{conn: conn} do
+  test "the tools sitemap carries index and tool URLs, but not client ones", %{conn: conn} do
     server = with_tools(~w(get_forecast))
 
-    xml = conn |> get("/sitemaps/tools.xml") |> response(200)
+    xml = conn |> get("/sitemaps/tools-1.xml") |> response(200)
 
     assert xml =~ "/servers/#{server.name}/tools</loc>"
     assert xml =~ "/servers/#{server.name}/tools/get_forecast</loc>"
-    assert xml =~ "/servers/#{server.name}/tools/get_forecast/cursor</loc>"
 
-    # And the index advertises the file.
-    assert conn |> get("/sitemap.xml") |> response(200) =~ "/sitemaps/tools.xml"
+    # Six client pages per tool across 188,000 tools would be a million
+    # near-identical URLs. They stay linked and useful, but unindexed.
+    refute xml =~ "/tools/get_forecast/cursor</loc>"
+
+    assert conn |> get("/sitemap.xml") |> response(200) =~ "/sitemaps/tools-1.xml"
+  end
+
+  test "a client page asks not to be indexed", %{conn: conn} do
+    server = with_tools()
+
+    html = conn |> get("/servers/#{server.name}/tools/get_forecast/cursor") |> html_response(200)
+    assert html =~ ~s(<meta name="robots" content="noindex">)
+
+    # The tool page itself stays indexable.
+    tool = conn |> get("/servers/#{server.name}/tools/get_forecast") |> html_response(200)
+    refute tool =~ "noindex"
   end
 end

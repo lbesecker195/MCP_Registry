@@ -161,18 +161,34 @@ defmodule McpRegistry.Registry do
   end
 
   @doc """
-  Active listings that declare at least one tool, for the tools sitemap.
+  One page of `{name, tools, updated_at}` for listings that declare tools.
 
-  Deliberately unpaginated: the whole catalogue holds only a few hundred tool
-  names, so this is a short list, not a scan. If tool coverage ever grows to
-  catalogue scale this has to become a paged query like `sitemap_entries/2`.
+  This was unpaginated while the catalogue held a few hundred tool names. The
+  probe took that to 188,000 across 10,000 listings within hours, the single
+  sitemap file passed the 50,000-URL limit, and generating it took three
+  minutes. Paged and narrow-selected since.
   """
-  def servers_with_tools do
+  def servers_with_tools(page, per_page) when page >= 1 do
     Server
+    |> with_tools()
+    |> order_by([s], asc: s.id)
+    |> offset(^((page - 1) * per_page))
+    |> limit(^per_page)
+    # Three columns, not the row: article_content alone can be tens of
+    # kilobytes and there are ten thousand of these.
+    |> select([s], {s.name, s.tools, s.updated_at})
+    |> Repo.all()
+  end
+
+  @doc "How many active listings declare at least one tool."
+  def count_servers_with_tools do
+    Server |> with_tools() |> Repo.aggregate(:count)
+  end
+
+  defp with_tools(query) do
+    query
     |> where([s], s.status == "active")
     |> where([s], fragment("cardinality(?) > 0", s.tools))
-    |> order_by([s], asc: s.id)
-    |> Repo.all()
   end
 
   @doc """
