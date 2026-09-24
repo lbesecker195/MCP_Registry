@@ -153,7 +153,7 @@ defmodule McpRegistryWeb.ServerLive.Tools do
         </li>
       </ul>
 
-      <.derivation_note />
+      <.derivation_note server={@server} />
       <.back_to_server server={@server} />
     </Layouts.app>
     """
@@ -214,7 +214,7 @@ defmodule McpRegistryWeb.ServerLive.Tools do
       </section>
 
       <.sibling_tools server={@server} tools={@tools} current={@tool} />
-      <.derivation_note />
+      <.derivation_note server={@server} />
       <.back_to_server server={@server} />
     </Layouts.app>
     """
@@ -325,7 +325,7 @@ defmodule McpRegistryWeb.ServerLive.Tools do
         </ul>
       </section>
 
-      <.derivation_note />
+      <.derivation_note server={@server} />
       <.back_to_server server={@server} />
     </Layouts.app>
     """
@@ -414,8 +414,22 @@ defmodule McpRegistryWeb.ServerLive.Tools do
     """
   end
 
+  attr :server, :map, required: true
+
   defp derivation_note(assigns) do
     ~H"""
+    <p
+      :if={@server.tools_source == "probed"}
+      class="flex items-start gap-1.5 text-[11px] text-pretty text-dim"
+    >
+      <.icon name="hero-check-badge" class="mt-px size-3.5 shrink-0 text-success" />
+      <span>
+        This list was read from the server itself, by connecting to it and calling <code class="font-mono text-ink">tools/list</code>{probed_phrase(
+          @server.probed_at
+        )}. It is what
+        the server actually exposes, not what its listing claims.
+      </span>
+    </p>
     <p class="text-[11px] text-pretty text-dim">
       <b class="font-medium text-ink">Mutating</b>
       and <b class="font-medium text-ink">Read-only</b>
@@ -454,6 +468,11 @@ defmodule McpRegistryWeb.ServerLive.Tools do
          "your config matches the one above exactly."}
     ]
   end
+
+  defp probed_phrase(nil), do: ""
+
+  defp probed_phrase(%DateTime{} = at),
+    do: " on " <> Calendar.strftime(at, "%-d %B %Y")
 
   defp tool_sentence(tools) do
     tools |> Enum.take(6) |> Enum.join(", ")

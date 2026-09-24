@@ -37,6 +37,9 @@ defmodule McpRegistry.Registry.Server do
     field :origin, :string, default: "local"
     field :source_updated_at, :utc_datetime_usec
     field :synced_at, :utc_datetime_usec
+    field :tools_source, :string
+    field :probed_at, :utc_datetime_usec
+    field :probe_status, :string
     field :article_content, :string
     field :article_generated_at, :utc_datetime_usec
 
