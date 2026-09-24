@@ -405,12 +405,27 @@ defmodule McpRegistryWeb.ServerLive.Show do
 
             <p :if={@server.prompts != []} class="pt-1">
               <.link
-                navigate={skills_path(@server)}
+                navigate={capabilities_path(@server, :prompts)}
                 class="group inline-flex items-center gap-1.5 font-mono text-xs text-brand"
               >
                 {length(@server.prompts)} {if length(@server.prompts) == 1,
-                  do: "skill",
-                  else: "skills"} you invoke yourself
+                  do: "prompt",
+                  else: "prompts"} you invoke yourself
+                <.icon
+                  name="hero-arrow-right-micro"
+                  class="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                />
+              </.link>
+            </p>
+
+            <p :if={@server.resources != []} class="pt-1">
+              <.link
+                navigate={capabilities_path(@server, :resources)}
+                class="group inline-flex items-center gap-1.5 font-mono text-xs text-brand"
+              >
+                {length(@server.resources)} {if length(@server.resources) == 1,
+                  do: "resource",
+                  else: "resources"} you attach as context
                 <.icon
                   name="hero-arrow-right-micro"
                   class="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5"

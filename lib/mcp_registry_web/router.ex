@@ -43,9 +43,25 @@ defmodule McpRegistryWeb.Router do
     live "/servers/:namespace/:name/tools", ServerLive.Tools, :index
     live "/servers/:namespace/:name/tools/:tool", ServerLive.Tools, :show
     live "/servers/:namespace/:name/tools/:tool/:client", ServerLive.Tools, :client
-    live "/servers/:namespace/:name/skills", ServerLive.Skills, :index
-    live "/servers/:namespace/:name/skills/:skill", ServerLive.Skills, :show
-    live "/servers/:namespace/:name/skills/:skill/:client", ServerLive.Skills, :client
+    live "/servers/:namespace/:name/prompts", ServerLive.Capabilities, :prompts_index
+    live "/servers/:namespace/:name/prompts/:item", ServerLive.Capabilities, :prompts_show
+
+    live "/servers/:namespace/:name/prompts/:item/:client",
+         ServerLive.Capabilities,
+         :prompts_client
+
+    live "/servers/:namespace/:name/resources", ServerLive.Capabilities, :resources_index
+    live "/servers/:namespace/:name/resources/:item", ServerLive.Capabilities, :resources_show
+
+    live "/servers/:namespace/:name/resources/:item/:client",
+         ServerLive.Capabilities,
+         :resources_client
+
+    # /skills was live briefly under the old name. A 301 rather than a 404,
+    # both for anything already crawled and because it is the word some
+    # readers will still try.
+    get "/servers/:namespace/:name/skills", RedirectController, :skills
+    get "/servers/:namespace/:name/skills/*rest", RedirectController, :skills
 
     live "/servers/*name", ServerLive.Show, :show
   end
