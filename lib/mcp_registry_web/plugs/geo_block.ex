@@ -42,11 +42,13 @@ defmodule McpRegistryWeb.Plugs.GeoBlock do
   get through and some nearby ones are stopped. VPN and mobile traffic is
   weaker still. Treat it as a coarse filter, not a boundary.
 
-  It is also worth knowing that some of Google's own crawler addresses
-  geolocate to Mountain View. Blocking that city can therefore block part of
-  Googlebot, which would cost search visibility. Nothing here exempts
-  crawlers — if that trade is unwanted, exempt them here rather than
-  discovering it in Search Console.
+  ## Crawlers are exempt
+
+  Some of Google's own addresses geolocate to Mountain View. With the block on
+  and no exemption, Googlebot was refused on `/book` and on two sitemap files
+  within hours — the site removing itself from search while appearing to work
+  perfectly to everyone else. Requests whose user agent names a known search
+  or AI crawler now skip the check entirely.
   """
   @behaviour Plug
 
@@ -55,8 +57,39 @@ defmodule McpRegistryWeb.Plugs.GeoBlock do
   @impl Plug
   def init(opts), do: opts
 
+  # Crawlers are exempt. Some of Google's own addresses geolocate to Mountain
+  # View, and with the block on, Googlebot was refused on /book and on two
+  # sitemap files within hours -- the site quietly removing itself from search
+  # while appearing to work. A geo block is a coarse filter on human traffic,
+  # not a security control (the moduledoc says so), so matching on user agent
+  # is proportionate even though it can be spoofed: anyone willing to forge a
+  # Googlebot header could equally use a VPN.
+  @crawlers ~w(googlebot bingbot duckduckbot applebot yandexbot baiduspider
+               slurp claudebot claude-web gptbot oai-searchbot chatgpt-user
+               perplexitybot amazonbot facebookexternalhit twitterbot
+               linkedinbot discordbot telegrambot whatsapp)
+
   @impl Plug
   def call(conn, _opts) do
+    if crawler?(conn) do
+      conn
+    else
+      geo_check(conn)
+    end
+  end
+
+  defp crawler?(conn) do
+    case Plug.Conn.get_req_header(conn, "user-agent") do
+      [agent | _] when is_binary(agent) ->
+        lowered = String.downcase(agent)
+        Enum.any?(@crawlers, &String.contains?(lowered, &1))
+
+      _ ->
+        false
+    end
+  end
+
+  defp geo_check(conn) do
     if blocked?(conn.remote_ip) do
       conn
       |> put_resp_content_type("text/plain")
