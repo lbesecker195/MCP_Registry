@@ -54,7 +54,13 @@ defmodule McpRegistry.Registry.Clients do
         cursor(server),
         vscode(server),
         zed(server),
-        windsurf(server)
+        windsurf(server),
+        cline(server),
+        gemini(server),
+        grok(server),
+        chatgpt(server),
+        claude_ai(server),
+        langchain(server)
       ]
       |> Enum.reject(&is_nil/1)
     else
@@ -69,11 +75,7 @@ defmodule McpRegistry.Registry.Clients do
   listings. Calling `configs/1` for each would JSON-encode sixty thousand
   snippets to then throw them away.
   """
-  def ids(%Server{} = server) do
-    if configurable?(server),
-      do: ~w(claude-code claude-desktop cursor vscode zed windsurf),
-      else: []
-  end
+  def ids(%Server{} = server), do: server |> configs() |> Enum.map(& &1.id)
 
   defp configurable?(%Server{} = server) do
     Server.remote?(server) or Install.command(server) != nil
@@ -290,6 +292,167 @@ defmodule McpRegistry.Registry.Clients do
       note: "Global only — Windsurf has no per-project MCP config. Refresh Cascade after saving.",
       docs_url: "https://docs.devin.ai/desktop/cascade/mcp"
     }
+  end
+
+  # --- Cline -----------------------------------------------------------------
+
+  # A VS Code extension, but it keeps its own file in the editor's
+  # globalStorage rather than using .vscode/mcp.json, and it uses `mcpServers`
+  # where VS Code itself uses `servers`.
+  defp cline(%Server{} = server) do
+    entry =
+      if Server.remote?(server),
+        do: ordered([{"url", server.remote_url}]),
+        else: stdio_entry(server)
+
+    %{
+      id: "cline",
+      label: "Cline",
+      kind: :json,
+      accepts_secrets: true,
+      path:
+        "~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
+      path_windows:
+        "%APPDATA%\\Code\\User\\globalStorage\\saoudrizwan.claude-dev\\settings\\cline_mcp_settings.json",
+      code: wrap(server, "mcpServers", entry),
+      note: "Cline's MCP Servers pane edits this file for you if you would rather not find it.",
+      docs_url: "https://docs.cline.bot/mcp/mcp-overview"
+    }
+  end
+
+  # --- Gemini CLI --------------------------------------------------------------
+
+  defp gemini(%Server{} = server) do
+    entry =
+      if Server.remote?(server) do
+        ordered([{if(server.transport == "sse", do: "url", else: "httpUrl"), server.remote_url}])
+      else
+        stdio_entry(server)
+      end
+
+    %{
+      id: "gemini",
+      label: "Gemini CLI",
+      kind: :json,
+      accepts_secrets: true,
+      path: "~/.gemini/settings.json",
+      path_windows: "%USERPROFILE%\\.gemini\\settings.json",
+      code: wrap(server, "mcpServers", entry),
+      note:
+        "Gemini expands $VAR and ${VAR} inside env values, so a secret can live in your shell rather than this file.",
+      docs_url: "https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html"
+    }
+  end
+
+  # --- Grok --------------------------------------------------------------------
+
+  # Grok Build reads Claude Code's .mcp.json and Claude Desktop's config as-is,
+  # so the file it wants is one you may already have.
+  defp grok(%Server{} = server) do
+    entry =
+      if Server.remote?(server) do
+        ordered([{"type", http_kind(server)}, {"url", server.remote_url}])
+      else
+        stdio_entry(server, type: "stdio")
+      end
+
+    %{
+      id: "grok",
+      label: "Grok",
+      kind: :json,
+      accepts_secrets: true,
+      path: ".mcp.json (in your project root)",
+      path_windows: nil,
+      code: wrap(server, "mcpServers", entry),
+      note:
+        "Grok Build reads Claude Code's .mcp.json and Claude Desktop's config unchanged, so a server you have already set up there needs nothing new. The Grok web app and X integration do not take custom servers.",
+      docs_url: "https://docs.x.ai/developers/tools/remote-mcp"
+    }
+  end
+
+  # --- ChatGPT and Claude.ai ---------------------------------------------------
+
+  # Both take remote servers through a UI, not a file, and neither will run a
+  # local package. A packaged listing genuinely cannot be installed in them,
+  # and saying so is more useful than inventing a config.
+  defp chatgpt(%Server{} = server) do
+    if Server.remote?(server) do
+      %{
+        id: "chatgpt",
+        label: "ChatGPT",
+        kind: :ui,
+        accepts_secrets: false,
+        path: "Settings → Connectors → Advanced → Developer mode",
+        path_windows: nil,
+        code: server.remote_url,
+        note:
+          "Custom connectors are a paid-plan feature and take a remote URL only. ChatGPT cannot run a packaged server locally.",
+        docs_url: "https://developers.openai.com/api/docs/mcp"
+      }
+    end
+  end
+
+  defp claude_ai(%Server{} = server) do
+    if Server.remote?(server) do
+      %{
+        id: "claude-ai",
+        label: "Claude.ai",
+        kind: :ui,
+        accepts_secrets: false,
+        path: "Settings → Connectors → Add custom connector",
+        path_windows: nil,
+        code: server.remote_url,
+        note:
+          "Claude on the web takes a remote URL and completes OAuth in the browser. For a packaged server use Claude Desktop or Claude Code instead.",
+        docs_url:
+          "https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp"
+      }
+    end
+  end
+
+  # --- LangChain ---------------------------------------------------------------
+
+  # Not an application with a config file: a library you call. The snippet is
+  # the install instruction.
+  defp langchain(%Server{} = server) do
+    short = Server.short_name(server)
+
+    connection =
+      if Server.remote?(server) do
+        ~s(        "#{short}": {\n            "transport": "streamable_http",\n            "url": "#{server.remote_url}",\n        }\n)
+      else
+        case Install.command(server) do
+          {cmd, args} ->
+            args_literal = Enum.map_join(args, ", ", &~s("#{&1}"))
+
+            ~s(        "#{short}": {\n            "transport": "stdio",\n            "command": "#{cmd}",\n            "args": [#{args_literal}],\n        }\n)
+
+          nil ->
+            nil
+        end
+      end
+
+    if connection do
+      %{
+        id: "langchain",
+        label: "LangChain",
+        kind: :code,
+        accepts_secrets: false,
+        path: "pip install langchain-mcp-adapters",
+        path_windows: nil,
+        code: """
+        from langchain_mcp_adapters.client import MultiServerMCPClient
+
+        client = MultiServerMCPClient({
+        #{String.trim_trailing(connection)}
+        })
+
+        tools = await client.get_tools()
+        """,
+        note: "get_tools() returns the server's tools as LangChain tools, ready for an agent.",
+        docs_url: "https://github.com/langchain-ai/langchain-mcp-adapters"
+      }
+    end
   end
 
   # --- Shared ----------------------------------------------------------------

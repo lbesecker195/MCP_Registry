@@ -161,6 +161,23 @@ defmodule McpRegistry.Registry do
   end
 
   @doc """
+  One page of listings for the agent sitemap, with the fields
+  `McpRegistry.Registry.Clients.ids/1` needs to decide which clients apply.
+  """
+  def agent_sitemap_entries(page, per_page) when page >= 1 do
+    Server
+    |> where([s], s.status == "active")
+    |> order_by([s], asc: s.id)
+    |> offset(^((page - 1) * per_page))
+    |> limit(^per_page)
+    |> select([s], {
+      struct(s, [:name, :transport, :remote_url, :package_registry, :package_identifier]),
+      s.updated_at
+    })
+    |> Repo.all()
+  end
+
+  @doc """
   One page of `{name, tools, updated_at}` for listings that declare tools.
 
   This was unpaginated while the catalogue held a few hundred tool names. The

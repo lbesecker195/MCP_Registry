@@ -289,6 +289,17 @@ defmodule McpRegistryWeb.ServerLive.Show do
           max_height="max-h-96"
         />
 
+        <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-dim">
+          <span class="font-mono text-[11px] tracking-wide uppercase">setup guides:</span>
+          <.link
+            :for={client <- @clients}
+            navigate={agent_path(@server, client.id)}
+            class="rounded-full border border-rule px-2 py-0.5 font-mono text-[11px] transition-colors hover:border-brand/40 hover:bg-surface hover:text-ink"
+          >
+            {client.label}
+          </.link>
+        </p>
+
         <p
           :if={current_client(assigns).note}
           class="flex items-start gap-1.5 text-xs text-pretty text-dim"

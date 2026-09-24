@@ -21,6 +21,8 @@ defmodule McpRegistryWeb.SitemapController do
   # listings is roughly 19,000 URLs -- inside the 50,000 limit with room for a
   # listing carrying an unusually large tool set.
   @servers_per_tool_file 150
+  # Twelve or so agent pages a listing, so 3,000 listings is about 36,000 URLs.
+  @servers_per_agent_file 3_000
 
   # `/live` is LiveView's transport, not content. Its long-poll fallback carries
   # a fresh CSRF token in the query string, so every fetch mints a URL that has
@@ -54,7 +56,8 @@ defmodule McpRegistryWeb.SitemapController do
         case tool_files() do
           0 -> []
           n -> Enum.map(1..n, &"tools-#{&1}.xml")
-        end
+        end ++
+        Enum.map(1..agent_files(), &"agents-#{&1}.xml")
 
     [
       ~s(<?xml version="1.0" encoding="UTF-8"?>\n),
@@ -74,6 +77,27 @@ defmodule McpRegistryWeb.SitemapController do
 
   # Every tool page and every tool-and-client page, chunked by listing. A
   # listing's tools travel together, so the chunk boundary is the listing.
+  # One page per listing per client that can actually run it. Chunked because
+  # twelve clients across 34,000 listings is roughly 400,000 URLs.
+  def show(conn, %{"file" => "agents-" <> file}) do
+    with {page, ".xml"} <- Integer.parse(file),
+         true <- page in 1..agent_files() do
+      base = McpRegistryWeb.Endpoint.url()
+
+      page
+      |> Registry.agent_sitemap_entries(@servers_per_agent_file)
+      |> Enum.flat_map(fn {server, updated_at} ->
+        Enum.map(Clients.ids(server), fn id ->
+          {base <> Routes.agent_path(server.name, id), updated_at}
+        end)
+      end)
+      |> urlset()
+      |> send_xml(conn)
+    else
+      _ -> not_found(conn)
+    end
+  end
+
   def show(conn, %{"file" => "tools-" <> file}) do
     with {page, ".xml"} <- Integer.parse(file),
          true <- page in 1..tool_files() do
@@ -115,6 +139,9 @@ defmodule McpRegistryWeb.SitemapController do
   def show(conn, _params), do: not_found(conn)
 
   defp server_files, do: max(ceil(Registry.count_servers() / @per_file), 1)
+
+  defp agent_files,
+    do: max(ceil(Registry.count_servers() / @servers_per_agent_file), 1)
 
   defp tool_files,
     do: ceil(Registry.count_servers_with_tools() / @servers_per_tool_file)
