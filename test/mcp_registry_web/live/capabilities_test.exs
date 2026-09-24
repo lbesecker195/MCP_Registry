@@ -31,6 +31,18 @@ defmodule McpRegistryWeb.ServerLive.CapabilitiesTest do
       assert Capability.slug("ui://widget/x") == "ui-widget-x"
     end
 
+    test "a name with no latin characters still gets its own URL" do
+      # 192 of the catalogue's items are written in scripts with no latin
+      # letters at all. Reduced to nothing they would share one slug, and
+      # only the first on each server would have been reachable.
+      a = Capability.slug("文档")
+      b = Capability.slug("指南")
+
+      refute a == b
+      refute a == "item"
+      assert Capability.find(["文档", "指南"], b) == "指南"
+    end
+
     test "find matches on the slug, so a rewritten name is still reachable" do
       items = ["file:///alerts.json", "review_diff"]
 

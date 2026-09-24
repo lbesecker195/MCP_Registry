@@ -15,6 +15,14 @@ defmodule McpRegistry.Cache do
   Reads go straight to ETS with no GenServer in the path, so a hot page does
   not serialise behind a single process. The GenServer exists only to own the
   table so it survives the caller.
+
+  ## Off under test
+
+  The table is global while `async: true` tests each hold their own database
+  sandbox, so a value one test computed can be handed to another that cannot
+  see the rows behind it. That is a flaky failure with no bearing on the code
+  under test, and caching a count nobody is measuring buys nothing, so
+  `config/test.exs` turns it off.
   """
   use GenServer
 
@@ -34,6 +42,14 @@ defmodule McpRegistry.Cache do
   must never be the reason something fails.
   """
   def fetch(key, ttl \\ nil, fun) when is_function(fun, 0) do
+    if Application.get_env(:mcp_registry, :cache_enabled, true) do
+      cached(key, ttl, fun)
+    else
+      fun.()
+    end
+  end
+
+  defp cached(key, ttl, fun) do
     ttl = ttl || day()
     now = System.monotonic_time(:millisecond)
 
