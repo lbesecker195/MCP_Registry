@@ -27,6 +27,12 @@ defmodule McpRegistryWeb.Routes do
   def tool_path(name, tool) when is_binary(name) and is_binary(tool),
     do: tools_path(name) <> "/" <> Tool.slug(tool)
 
+  @doc "A listing set up in one client: the server x agent page."
+  def agent_path(%Server{name: name}, agent_id), do: agent_path(name, agent_id)
+
+  def agent_path(name, agent_id) when is_binary(name) and is_binary(agent_id),
+    do: server_path(name) <> "/for/" <> agent_id
+
   @doc "One tool, as configured for one client."
   def client_path(%Server{name: name}, tool, client_id) when is_binary(client_id),
     do: client_path(name, tool, client_id)
