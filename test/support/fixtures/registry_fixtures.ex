@@ -22,7 +22,24 @@ defmodule McpRegistry.RegistryFixtures do
 
   def server_fixture(attrs \\ %{}) do
     status = Map.get(attrs, :status, "active")
-    {:ok, server} = McpRegistry.Registry.create_server(valid_server_attrs(attrs), status: status)
-    server
+    probed = Map.take(attrs, [:prompts, :resources])
+
+    {:ok, server} =
+      attrs
+      |> Map.drop([:prompts, :resources])
+      |> valid_server_attrs()
+      |> McpRegistry.Registry.create_server(status: status)
+
+    # Prompts and resources are deliberately not castable: the skills pages say
+    # these names were read from the server itself, and a publisher able to
+    # submit them would make that claim false. The probe writes them straight
+    # through, so a fixture has to as well.
+    if probed == %{} do
+      server
+    else
+      server
+      |> Ecto.Changeset.change(probed)
+      |> McpRegistry.Repo.update!()
+    end
   end
 end

@@ -403,6 +403,21 @@ defmodule McpRegistryWeb.ServerLive.Show do
               </.link>
             </p>
 
+            <p :if={@server.prompts != []} class="pt-1">
+              <.link
+                navigate={skills_path(@server)}
+                class="group inline-flex items-center gap-1.5 font-mono text-xs text-brand"
+              >
+                {length(@server.prompts)} {if length(@server.prompts) == 1,
+                  do: "skill",
+                  else: "skills"} you invoke yourself
+                <.icon
+                  name="hero-arrow-right-micro"
+                  class="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                />
+              </.link>
+            </p>
+
             <p :if={@tools != []} class="text-[11px] text-pretty text-dim">
               <b class="font-medium text-ink">Mutating</b>
               and <b class="font-medium text-ink">Read-only</b>

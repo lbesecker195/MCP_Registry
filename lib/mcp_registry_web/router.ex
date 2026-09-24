@@ -43,6 +43,9 @@ defmodule McpRegistryWeb.Router do
     live "/servers/:namespace/:name/tools", ServerLive.Tools, :index
     live "/servers/:namespace/:name/tools/:tool", ServerLive.Tools, :show
     live "/servers/:namespace/:name/tools/:tool/:client", ServerLive.Tools, :client
+    live "/servers/:namespace/:name/skills", ServerLive.Skills, :index
+    live "/servers/:namespace/:name/skills/:skill", ServerLive.Skills, :show
+    live "/servers/:namespace/:name/skills/:skill/:client", ServerLive.Skills, :client
 
     live "/servers/*name", ServerLive.Show, :show
   end

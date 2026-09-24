@@ -1,36 +1,34 @@
-defmodule McpRegistryWeb.ServerLive.Tools do
+defmodule McpRegistryWeb.ServerLive.Skills do
   @moduledoc """
-  The tools silo under a listing: an index, a page per tool, and a page per
-  tool per client.
+  The skills silo under a listing: an index, a page per skill, and a page per
+  skill per client.
 
-  Three actions share one module because they share one lookup and one set of
-  breadcrumbs.
+    * `:index`  — `/servers/:namespace/:name/skills`
+    * `:show`   — `/servers/:namespace/:name/skills/:skill`
+    * `:client` — `/servers/:namespace/:name/skills/:skill/:client`
 
-    * `:index`  — `/servers/:namespace/:name/tools`
-    * `:show`   — `/servers/:namespace/:name/tools/:tool`
-    * `:client` — `/servers/:namespace/:name/tools/:tool/:client`
+  A skill is an MCP **prompt**: something the user invokes deliberately, as
+  against a tool, which the model reaches for on its own. The pages lean on
+  that difference, because it is the part a reader arriving from a search has
+  usually not understood.
 
-  ## Why these pages exist and the rest of the silo does not
+  ## This silo exists only where the data does
 
-  `server.json` carries no tool list, so for a long time the registry held
-  34,000 listings and about 130 tool names. Connecting to the endpoints and
-  asking them settled that. The principle survives it: a page is generated only
-  where there is something real to say. An `llms.txt` page would be an empty
-  template on every listing, which is the doorway pattern search engines
-  penalise, so there is none.
+  A page is generated only for a listing that actually has prompts, and the
+  registry knows that only because it asked. Roughly one remote server in ten
+  has any — so this silo covers a small slice of the catalogue by design, and
+  a listing with none gets no page rather than an empty one. Thin pages at
+  catalogue scale are the doorway pattern search engines penalise.
 
-  The skills silo (`McpRegistryWeb.ServerLive.Skills`) went the same way —
-  asked first, built second. Roughly one remote server in ten has prompts, so
-  it exists, and only under the listings that have them.
-
-  The client pages are limited to the clients `McpRegistry.Registry.Clients`
-  can produce a working configuration for. Crawlers such as GPTBot or BingBot
-  do not call MCP tools, so a "how to" page addressed to them would be fiction.
+  Client pages are limited to the clients that can actually invoke a prompt.
+  That is a narrower set than for tools: a prompt is surfaced in a client's
+  own UI (Claude Code's slash commands, Claude Desktop's attachment menu), so
+  a client with no such surface gets no page, however well it runs the server.
   """
   use McpRegistryWeb, :live_view
 
   alias McpRegistry.Registry
-  alias McpRegistry.Registry.{Clients, Server, Tool}
+  alias McpRegistry.Registry.{Clients, Server, Skill}
 
   @impl true
   def mount(%{"namespace" => namespace, "name" => name}, _session, socket) do
@@ -42,7 +40,7 @@ defmodule McpRegistryWeb.ServerLive.Tools do
      |> assign(:short_name, Server.short_name(server))
      |> assign(:namespace, namespace)
      |> assign(:clients, Clients.configs(server))
-     |> assign(:tools, server.tools)
+     |> assign(:skills, server.prompts)
      |> assign(:noindex, server.status != "active")}
   end
 
@@ -51,77 +49,78 @@ defmodule McpRegistryWeb.ServerLive.Tools do
     {:noreply, apply_action(socket, socket.assigns.live_action, params)}
   end
 
-  # An index with nothing on it is not worth a URL; send it to the listing.
+  # A listing with no prompts has no skills page. This is the whole reason the
+  # prober was extended -- without a real count, every listing would get one.
   defp apply_action(socket, :index, _params) do
-    if socket.assigns.tools == [] do
+    if socket.assigns.skills == [] do
       push_navigate(socket, to: server_path(socket.assigns.server))
     else
       server = socket.assigns.server
-      title = "#{server.title} MCP Tools"
+      title = "#{server.title} MCP Skills"
 
       socket
       |> assign(:page_title, title)
       |> assign(:heading, title)
       |> assign(
         :meta_description,
-        "Every tool exposed by the #{server.title} MCP server: #{tool_sentence(socket.assigns.tools)}. " <>
-          "Install it in Claude Code, Claude Desktop, Cursor, VS Code, Zed or Windsurf."
+        "Every skill the #{server.title} MCP server offers: #{skill_sentence(socket.assigns.skills)}. " <>
+          "What each one does and how to invoke it from Claude Code, Claude Desktop, Cursor or VS Code."
       )
-      |> assign(:canonical_url, absolute(tools_path(server)))
+      |> assign(:canonical_url, absolute(skills_path(server)))
     end
   end
 
-  defp apply_action(socket, :show, %{"tool" => slug}) do
+  defp apply_action(socket, :show, %{"skill" => slug}) do
     server = socket.assigns.server
 
-    case Tool.find(socket.assigns.tools, slug) do
+    case Skill.find(socket.assigns.skills, slug) do
       nil ->
         push_navigate(socket, to: server_path(server))
 
-      tool ->
-        title = "#{tool} — #{server.title} MCP Tool"
+      skill ->
+        title = "#{skill} — #{server.title} MCP Skill"
 
         socket
-        |> assign(:tool, tool)
+        |> assign(:skill, skill)
         |> assign(:page_title, title)
         |> assign(:heading, title)
         |> assign(
           :meta_description,
-          "#{tool} is a tool on the #{server.title} MCP server (#{Tool.gloss(tool)}). " <>
-            "How to connect the server and call #{tool} from Claude Code, Cursor, VS Code, Zed or Windsurf."
+          "#{skill} is a skill on the #{server.title} MCP server (#{Skill.gloss(skill)}). " <>
+            "How to connect the server and invoke #{skill} from Claude Code, Claude Desktop, Cursor or VS Code."
         )
-        |> assign(:canonical_url, absolute(tool_path(server, tool)))
+        |> assign(:canonical_url, absolute(skill_path(server, skill)))
     end
   end
 
-  defp apply_action(socket, :client, %{"tool" => slug, "client" => client_id}) do
+  defp apply_action(socket, :client, %{"skill" => slug, "client" => client_id}) do
     server = socket.assigns.server
-    tool = Tool.find(socket.assigns.tools, slug)
+    skill = Skill.find(socket.assigns.skills, slug)
     client = Enum.find(socket.assigns.clients, &(&1.id == client_id))
 
     cond do
-      is_nil(tool) ->
+      is_nil(skill) ->
         push_navigate(socket, to: server_path(server))
 
       is_nil(client) ->
-        push_navigate(socket, to: tool_path(server, tool))
+        push_navigate(socket, to: skill_path(server, skill))
 
       true ->
-        # Title and H1 name the client first: this page exists to answer
-        # "<client> <server> <tool>", which is how the question gets typed.
-        title = "#{client.label} #{server.title} #{tool}"
+        # Client first, as on the tool pages: this page exists to answer
+        # "<client> <server> <skill>", which is the order it gets typed in.
+        title = "#{client.label} #{server.title} Skill/#{skill}"
 
         socket
-        |> assign(:tool, tool)
+        |> assign(:skill, skill)
         |> assign(:client, client)
         |> assign(:page_title, title)
         |> assign(:heading, title)
         |> assign(
           :meta_description,
-          "How to use the #{tool} tool from the #{server.title} MCP server in #{client.label}: " <>
-            "where the configuration lives, what to paste, and what to check when it does not connect."
+          "How to invoke the #{skill} skill from the #{server.title} MCP server in #{client.label}: " <>
+            "where the configuration lives, what to paste, and how the prompt is surfaced once connected."
         )
-        |> assign(:canonical_url, absolute(client_path(server, tool, client.id)))
+        |> assign(:canonical_url, absolute(skill_client_path(server, skill, client.id)))
     end
   end
 
@@ -134,29 +133,28 @@ defmodule McpRegistryWeb.ServerLive.Tools do
       <header class="rise space-y-3 border-b border-rule pb-6">
         <h1 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{@heading}</h1>
         <p class="max-w-2xl text-sm leading-relaxed text-pretty text-dim">
-          {@server.title} exposes {tool_count(length(@tools))}. Each one has its own page with the
-          configuration for every client that can run this server.
+          {@server.title} offers {skill_count(length(@skills))}. A skill is a prompt you invoke
+          yourself, rather than a tool the model calls on your behalf — each has its own page with
+          the configuration for every client that can run it.
         </p>
       </header>
 
       <ul class="grid gap-2.5 sm:grid-cols-2">
-        <li :for={tool <- @tools}>
+        <li :for={skill <- @skills}>
           <.link
-            navigate={tool_path(@server, tool)}
+            navigate={skill_path(@server, skill)}
             class="group flex h-full flex-col gap-1.5 rounded-box border border-rule bg-surface/40 p-3.5 transition-colors hover:border-rule-strong hover:bg-surface"
           >
-            <div class="flex items-start justify-between gap-2">
-              <code class="min-w-0 font-mono text-xs font-semibold break-all text-brand">
-                {tool}
-              </code>
-              <.kind_badge tool={tool} />
-            </div>
-            <p class="text-[11px] text-dim">{Tool.gloss(tool)}</p>
+            <code class="min-w-0 font-mono text-xs font-semibold break-all text-brand">
+              {skill}
+            </code>
+            <p class="text-[11px] text-dim">{Skill.gloss(skill)}</p>
           </.link>
         </li>
       </ul>
 
-      <.derivation_note server={@server} />
+      <.also_tools server={@server} />
+      <.provenance server={@server} />
       <.back_to_server server={@server} />
     </Layouts.app>
     """
@@ -166,37 +164,35 @@ defmodule McpRegistryWeb.ServerLive.Tools do
     ~H"""
     <Layouts.app flash={@flash} active={:servers} wide={true}>
       <:rail>
-        <.crumbs server={@server} namespace={@namespace} short_name={@short_name} tool={@tool} />
+        <.crumbs server={@server} namespace={@namespace} short_name={@short_name} skill={@skill} />
       </:rail>
 
       <header class="rise space-y-3 border-b border-rule pb-6">
-        <h1 class="flex flex-wrap items-center gap-x-3 gap-y-2 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-          {@heading} <.kind_badge tool={@tool} />
-        </h1>
+        <h1 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{@heading}</h1>
         <p class="max-w-2xl text-sm leading-relaxed text-pretty text-dim">
-          <code class="font-mono text-ink">{@tool}</code>
-          ({Tool.gloss(@tool)}) is one of {tool_count(length(@tools))} on the
+          <code class="font-mono text-ink">{@skill}</code>
+          ({Skill.gloss(@skill)}) is one of {skill_count(length(@skills))} on the
           <.link navigate={server_path(@server)} class={link_class()}>{@server.title}</.link>
-          MCP server. Connect the server and your client discovers it on the handshake.
+          MCP server. Connect the server and it appears in your client, ready to invoke.
         </p>
       </header>
 
-      <section :if={@clients != []} aria-labelledby="clients-heading" class="space-y-4">
+      <section aria-labelledby="clients-heading" class="space-y-4">
         <div class="space-y-1.5">
           <p class="font-mono text-[11px] tracking-wide text-dim uppercase">by client</p>
           <h2 id="clients-heading" class="text-xl font-semibold tracking-tight text-balance">
-            How to call {@tool} from your client
+            How to invoke {@skill} from your client
           </h2>
         </div>
 
         <ul class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <li :for={client <- @clients}>
             <.link
-              navigate={client_path(@server, @tool, client.id)}
+              navigate={skill_client_path(@server, @skill, client.id)}
               class="group flex h-full flex-col gap-1 rounded-box border border-rule bg-surface/40 p-3.5 transition-colors hover:border-brand/40 hover:bg-surface"
             >
               <span class="text-sm font-medium transition-colors group-hover:text-brand">
-                {client.label} {@server.title} {@tool}
+                {client.label} {@server.title} Skill/{@skill}
               </span>
               <span class="font-mono text-[11px] text-dim">{client.path}</span>
             </.link>
@@ -204,20 +200,9 @@ defmodule McpRegistryWeb.ServerLive.Tools do
         </ul>
       </section>
 
-      <section :if={@clients != []} aria-labelledby="quick-heading" class="space-y-3">
-        <h2 id="quick-heading" class="font-mono text-[11px] tracking-wide text-dim uppercase">
-          Fastest route
-        </h2>
-        <.code_block
-          id="tool-quick-install"
-          code={List.first(@clients).code}
-          copy_label={if List.first(@clients).kind == :cli, do: "Copy command", else: "Copy config"}
-          max_height="max-h-80"
-        />
-      </section>
-
-      <.sibling_tools server={@server} tools={@tools} current={@tool} />
-      <.derivation_note server={@server} />
+      <.sibling_skills server={@server} skills={@skills} current={@skill} />
+      <.also_tools server={@server} />
+      <.provenance server={@server} />
       <.back_to_server server={@server} />
     </Layouts.app>
     """
@@ -231,7 +216,7 @@ defmodule McpRegistryWeb.ServerLive.Tools do
           server={@server}
           namespace={@namespace}
           short_name={@short_name}
-          tool={@tool}
+          skill={@skill}
           client={@client}
         />
       </:rail>
@@ -239,12 +224,12 @@ defmodule McpRegistryWeb.ServerLive.Tools do
       <header class="rise space-y-3 border-b border-rule pb-6">
         <h1 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{@heading}</h1>
         <h2 class="text-base font-medium text-pretty text-dim">
-          How to: {@client.label} {@server.title} {@tool}
+          How to: {@client.label} {@server.title} {@skill}
         </h2>
         <div class="flex flex-wrap gap-1.5 pt-1">
           <.meta_chip key="client" value={@client.label} tone="brand" />
           <.meta_chip key="transport" value={@server.transport} />
-          <.meta_chip key="tool" value={@tool} tone="accent" />
+          <.meta_chip key="skill" value={@skill} tone="accent" />
         </div>
       </header>
 
@@ -265,7 +250,7 @@ defmodule McpRegistryWeb.ServerLive.Tools do
         </ol>
 
         <.code_block
-          id="client-config"
+          id="skill-client-config"
           code={@client.code}
           copy_label={if @client.kind == :cli, do: "Copy command", else: "Copy config"}
           max_height="max-h-96"
@@ -301,7 +286,7 @@ defmodule McpRegistryWeb.ServerLive.Tools do
           <.icon name="hero-shield-check" class="size-3.5 text-brand" /> Set these first
         </h2>
         <p class="text-xs text-pretty text-dim">
-          {@server.title} will not start until these are set, so {@tool} never becomes available.
+          {@server.title} will not start until these are set, so {@skill} never appears in {@client.label}.
         </p>
         <ul class="flex flex-wrap gap-1.5">
           <li :for={var <- @server.env_vars}>
@@ -314,12 +299,12 @@ defmodule McpRegistryWeb.ServerLive.Tools do
 
       <section aria-labelledby="other-clients" class="space-y-3">
         <h2 id="other-clients" class="font-mono text-[11px] tracking-wide text-dim uppercase">
-          Same tool, other clients
+          Same skill, other clients
         </h2>
         <ul class="flex flex-wrap gap-1.5">
           <li :for={other <- Enum.reject(@clients, &(&1.id == @client.id))}>
             <.link
-              navigate={client_path(@server, @tool, other.id)}
+              navigate={skill_client_path(@server, @skill, other.id)}
               class="block rounded-full border border-rule px-2.5 py-1 font-mono text-[11px] text-dim transition-colors hover:border-brand/40 hover:bg-surface hover:text-ink"
             >
               {other.label}
@@ -328,7 +313,7 @@ defmodule McpRegistryWeb.ServerLive.Tools do
         </ul>
       </section>
 
-      <.derivation_note server={@server} />
+      <.provenance server={@server} />
       <.back_to_server server={@server} />
     </Layouts.app>
     """
@@ -339,7 +324,7 @@ defmodule McpRegistryWeb.ServerLive.Tools do
   attr :server, :map, required: true
   attr :namespace, :string, required: true
   attr :short_name, :string, required: true
-  attr :tool, :string, default: nil
+  attr :skill, :string, default: nil
   attr :client, :map, default: nil
 
   defp crumbs(assigns) do
@@ -358,23 +343,23 @@ defmodule McpRegistryWeb.ServerLive.Tools do
         <li aria-hidden="true" class="text-rule-strong">/</li>
         <li>
           <.link
-            navigate={tools_path(@server)}
-            class={if @tool, do: "transition-colors hover:text-ink", else: "font-medium text-brand"}
+            navigate={skills_path(@server)}
+            class={if @skill, do: "transition-colors hover:text-ink", else: "font-medium text-brand"}
           >
-            tools
+            skills
           </.link>
         </li>
-        <li :if={@tool} aria-hidden="true" class="text-rule-strong">/</li>
-        <li :if={@tool}>
+        <li :if={@skill} aria-hidden="true" class="text-rule-strong">/</li>
+        <li :if={@skill}>
           <.link
-            navigate={tool_path(@server, @tool)}
+            navigate={skill_path(@server, @skill)}
             class={
               if @client,
                 do: "transition-colors hover:text-ink",
                 else: "font-medium break-all text-brand"
             }
           >
-            {@tool}
+            {@skill}
           </.link>
         </li>
         <li :if={@client} aria-hidden="true" class="text-rule-strong">/</li>
@@ -384,32 +369,23 @@ defmodule McpRegistryWeb.ServerLive.Tools do
     """
   end
 
-  attr :tool, :string, required: true
-
-  defp kind_badge(assigns) do
-    ~H"""
-    <.badge :if={Tool.kind(@tool) == :mutating} tone="warning">Mutating</.badge>
-    <.badge :if={Tool.kind(@tool) == :readonly} tone="success">Read-only</.badge>
-    """
-  end
-
   attr :server, :map, required: true
-  attr :tools, :list, required: true
+  attr :skills, :list, required: true
   attr :current, :string, required: true
 
-  defp sibling_tools(assigns) do
+  defp sibling_skills(assigns) do
     ~H"""
-    <section :if={length(@tools) > 1} aria-labelledby="siblings" class="space-y-3">
+    <section :if={length(@skills) > 1} aria-labelledby="siblings" class="space-y-3">
       <h2 id="siblings" class="font-mono text-[11px] tracking-wide text-dim uppercase">
-        Other tools on this server
+        Other skills on this server
       </h2>
       <ul class="flex flex-wrap gap-1.5">
-        <li :for={tool <- Enum.reject(@tools, &(&1 == @current))}>
+        <li :for={skill <- Enum.reject(@skills, &(&1 == @current))}>
           <.link
-            navigate={tool_path(@server, tool)}
+            navigate={skill_path(@server, skill)}
             class="block rounded-full border border-rule px-2.5 py-1 font-mono text-[11px] text-dim transition-colors hover:border-brand/40 hover:bg-surface hover:text-ink"
           >
-            {tool}
+            {skill}
           </.link>
         </li>
       </ul>
@@ -419,25 +395,32 @@ defmodule McpRegistryWeb.ServerLive.Tools do
 
   attr :server, :map, required: true
 
-  defp derivation_note(assigns) do
+  defp also_tools(assigns) do
     ~H"""
-    <p
-      :if={@server.tools_source == "probed"}
-      class="flex items-start gap-1.5 text-[11px] text-pretty text-dim"
-    >
+    <p :if={@server.tools != []} class="text-xs text-pretty text-dim">
+      {@server.title} also exposes
+      <.link navigate={tools_path(@server)} class={link_class()}>
+        {length(@server.tools)} {if length(@server.tools) == 1, do: "tool", else: "tools"}
+      </.link>
+      — those the model calls by itself, where the skills above are ones you invoke.
+    </p>
+    """
+  end
+
+  attr :server, :map, required: true
+
+  defp provenance(assigns) do
+    ~H"""
+    <p class="flex items-start gap-1.5 text-[11px] text-pretty text-dim">
       <.icon name="hero-check-badge" class="mt-px size-3.5 shrink-0 text-success" />
       <span>
-        This list was read from the server itself, by connecting to it and calling <code class="font-mono text-ink">tools/list</code>{probed_phrase(
+        Read from the server itself, by connecting to it and calling <code class="font-mono text-ink">prompts/list</code>{probed_phrase(
           @server.probed_at
-        )}. It is what
-        the server actually exposes, not what its listing claims.
+        )}.
+        Nothing declares prompts in a listing, so this is the only way to know them — and it is
+        what the server actually offers, not what its listing claims. The registry stores names
+        only; connect the server for each skill's arguments.
       </span>
-    </p>
-    <p class="text-[11px] text-pretty text-dim">
-      <b class="font-medium text-ink">Mutating</b>
-      and <b class="font-medium text-ink">Read-only</b>
-      are read off each tool's name, not its schema — a hint, not a guarantee. The registry stores
-      tool names only; connect the server for its live schemas.
     </p>
     """
   end
@@ -456,7 +439,17 @@ defmodule McpRegistryWeb.ServerLive.Tools do
 
   # --- Helpers ---------------------------------------------------------------
 
-  defp steps(%{client: client, tool: tool, server: server}) do
+  # Where a prompt actually shows up differs by client, and getting this wrong
+  # is the difference between a page that works and one that sends the reader
+  # looking for a menu their client does not have.
+  defp surfaced_in(%{id: "claude-code"}), do: "as a slash command — type / and it is in the list"
+  defp surfaced_in(%{id: "claude-desktop"}), do: "in the attachment menu, under the server's name"
+  defp surfaced_in(%{kind: :cli}), do: "in the session's prompt list"
+  defp surfaced_in(%{kind: :ui}), do: "in the connector's menu once the server is linked"
+  defp surfaced_in(%{kind: :code}), do: "through the client's prompt API, fetched by name"
+  defp surfaced_in(_), do: "in the client's prompt or command menu"
+
+  defp steps(%{client: client, skill: skill, server: server}) do
     [
       {"02",
        if(client.kind == :cli,
@@ -464,31 +457,26 @@ defmodule McpRegistryWeb.ServerLive.Tools do
          else: "Save the file and restart #{client.label}."
        )},
       {"03",
-       "Ask for something #{tool} does. #{client.label} lists the server's tools on connect and " <>
-         "calls #{tool} itself — you do not invoke it by name."},
+       "#{skill} is surfaced #{surfaced_in(client)}. Unlike a tool, you invoke a skill " <>
+         "deliberately — #{client.label} will not call it for you."},
       {"04",
-       "If nothing happens, check the server is running and that #{server.title}'s identifier in " <>
-         "your config matches the one above exactly."}
+       "If it does not appear, check that #{server.title} is connected and that it is the " <>
+         "prompts list you are looking at, not the tools list."}
     ]
   end
 
   defp probed_phrase(nil), do: ""
 
-  defp probed_phrase(%DateTime{} = at),
-    do: " on " <> Calendar.strftime(at, "%-d %B %Y")
+  defp probed_phrase(%DateTime{} = at), do: " on " <> Calendar.strftime(at, "%-d %B %Y")
 
-  defp tool_sentence(tools) do
-    tools |> Enum.take(6) |> Enum.join(", ")
-  end
+  defp skill_sentence(skills), do: skills |> Enum.take(6) |> Enum.join(", ")
 
-  defp tool_count(1), do: "1 tool"
-  defp tool_count(n), do: "#{n} tools"
+  defp skill_count(1), do: "1 skill"
+  defp skill_count(n), do: "#{n} skills"
 
   defp link_class,
     do:
       "underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-brand"
 
-  # Not `url/1`: that name is taken by Phoenix.VerifiedRoutes, whose macro
-  # requires a compile-time ~p literal and rejects a built path.
   defp absolute(path), do: McpRegistryWeb.Endpoint.url() <> path
 end
