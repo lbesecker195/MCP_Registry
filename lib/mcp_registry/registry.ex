@@ -220,12 +220,12 @@ defmodule McpRegistry.Registry do
   struct, because `article_content` alone runs to tens of kilobytes and there
   are thousands of these.
   """
-  def servers_with(kind, page, per_page) when kind in [:prompts, :resources] and page >= 1 do
+  def servers_with(kind, offset, limit) when kind in [:prompts, :resources] do
     Server
     |> having_any(kind)
     |> order_by([s], asc: s.id)
-    |> offset(^((page - 1) * per_page))
-    |> limit(^per_page)
+    |> offset(^offset)
+    |> limit(^limit)
     |> select([s], {
       struct(s, [:name, :transport, :remote_url, :package_registry, :package_identifier]),
       field(s, ^kind),
@@ -237,6 +237,49 @@ defmodule McpRegistry.Registry do
   @doc "How many active listings have at least one prompt, or one resource."
   def count_servers_with(kind) when kind in [:prompts, :resources] do
     Server |> having_any(kind) |> Repo.aggregate(:count)
+  end
+
+  @doc """
+  How many listings belong in each sitemap file, so no file exceeds `budget`.
+
+  A fixed number of listings per file cannot work here. One listing has 960
+  resources and most have a handful, so a file holding 300 of them was 30,000
+  URLs in one place and 57,000 in another -- and a sitemap over 50,000 URLs is
+  rejected without a message. Packing to a URL budget is the only chunking
+  that survives a distribution that skewed.
+
+  Returns a list of listing counts, one per file, in `id` order. Cached with
+  the rest of the catalogue figures, so a sync or an approval refreshes it.
+  """
+  def capability_chunks(kind, budget) when kind in [:prompts, :resources] do
+    Cache.fetch({:capability_chunks, kind, budget}, fn ->
+      Server
+      |> having_any(kind)
+      |> order_by([s], asc: s.id)
+      |> select([s], fragment("cardinality(?)", field(s, ^kind)))
+      |> Repo.all()
+      |> pack(budget)
+    end)
+  end
+
+  # The index page, plus each item's own page and one per client. Twelve is
+  # the widest client list, so this is an upper bound rather than an estimate
+  # -- a file may come in under budget, never over it.
+  @urls_per_item 13
+
+  defp pack(sizes, budget) do
+    {full, last, _} =
+      Enum.reduce(sizes, {[], 0, 0}, fn size, {full, in_file, urls} ->
+        cost = 1 + size * @urls_per_item
+
+        if in_file > 0 and urls + cost > budget do
+          {[in_file | full], 1, cost}
+        else
+          {full, in_file + 1, urls + cost}
+        end
+      end)
+
+    Enum.reverse(if last > 0, do: [last | full], else: full)
   end
 
   defp having_any(query, kind) do

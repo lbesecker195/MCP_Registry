@@ -173,6 +173,36 @@ defmodule McpRegistryWeb.ServerLive.CapabilitiesTest do
       refute index =~ "skills"
     end
 
+    test "files are packed so none can exceed the 50,000-URL limit", %{conn: conn} do
+      # One listing has 960 resources and most have a handful. Chunking by a
+      # fixed listing count produced a 56,798-URL file, which a search engine
+      # rejects without saying so.
+      for n <- 1..10 do
+        server_fixture(%{
+          name: "io.github.acme/bulk-#{n}",
+          resources: Enum.map(1..400, &"file:///r#{n}-#{&1}")
+        })
+      end
+
+      index = conn |> get("/sitemap.xml") |> response(200)
+      files = Regex.scan(~r{/sitemaps/(resources-\d+)\.xml}, index) |> Enum.map(&List.last/1)
+
+      # Ten listings of 400 resources is ~52,000 URLs, past both the 40,000
+      # budget and the 50,000 limit, so the packing has to split it.
+      assert length(files) > 1
+
+      for file <- files do
+        urls =
+          conn
+          |> get("/sitemaps/#{file}.xml")
+          |> response(200)
+          |> then(&Regex.scan(~r{<loc>}, &1))
+          |> length()
+
+        assert urls <= 50_000, "#{file} has #{urls} URLs, over the sitemap limit"
+      end
+    end
+
     test "nothing anywhere means no file, and a 404 rather than an empty 200", %{conn: conn} do
       server_fixture(%{prompts: [], resources: []})
 
