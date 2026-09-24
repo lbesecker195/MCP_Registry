@@ -21,6 +21,7 @@ defmodule McpRegistry.Application do
       McpRegistry.RateLimiter,
       McpRegistry.OfficialRegistry.Scheduler,
       McpRegistry.Discovery.Batcher,
+      McpRegistry.Probe.Scheduler,
       # Start a worker by calling: McpRegistry.Worker.start_link(arg)
       # {McpRegistry.Worker, arg},
       # Start to serve requests, typically the last entry

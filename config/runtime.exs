@@ -84,6 +84,13 @@ config :mcp_registry, :geo_block,
       ]
     )
 
+# On unless PROBE_ENABLED says otherwise: shipping this inert would leave the
+# tool data exactly as empty as it was.
+config :mcp_registry, :probe,
+  enabled: System.get_env("PROBE_ENABLED", "true") not in ~w(false 0),
+  batch_size: String.to_integer(System.get_env("PROBE_BATCH_SIZE", "50")),
+  concurrency: String.to_integer(System.get_env("PROBE_CONCURRENCY", "4"))
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :mcp_registry, McpRegistryWeb.Endpoint,

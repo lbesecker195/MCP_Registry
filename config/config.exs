@@ -106,6 +106,19 @@ config :mcp_registry, :discovery,
   batch_pause_ms: :timer.seconds(5),
   req_options: []
 
+# Asks remote listings what tools they expose (McpRegistry.Probe). Paced
+# slowly on purpose: these are other people's servers, and a first pass over
+# ~21,000 endpoints takes about a day and a half at this rate. Enabled only in
+# prod, via runtime.exs.
+config :mcp_registry, :probe,
+  enabled: false,
+  batch_size: 50,
+  concurrency: 4,
+  recheck_days: 14,
+  interval_ms: :timer.minutes(5),
+  initial_delay_ms: :timer.minutes(3),
+  req_options: []
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
