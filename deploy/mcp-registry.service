@@ -21,8 +21,18 @@ RestartSec=5
 # headroom -- enough that loading the geo-IP database pushed the BEAM through
 # MemoryHigh into MemoryMax and stalled every database-backed request while
 # routes touching no database kept answering.
-MemoryHigh=768M
-MemoryMax=1G
+#
+# Raised again the same day. 768M was still too tight: with the geo database
+# resident the working set settles near 700 MB, and memory.events recorded
+# tens of thousands of `high` breaches -- the kernel reclaiming hard, which is
+# the same stall in miniature. Read that file before trusting a ceiling here:
+#
+#   cat /sys/fs/cgroup/system.slice/mcp-registry.service/memory.events
+#
+# `high` should stay at or near zero. It is the early warning that `max` and
+# an outage are next.
+MemoryHigh=2G
+MemoryMax=3G
 LimitNOFILE=65536
 NoNewPrivileges=true
 ProtectSystem=full
