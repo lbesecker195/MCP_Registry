@@ -174,9 +174,14 @@ defmodule McpRegistry.Registry do
     |> order_by([s], asc: s.id)
     |> offset(^((page - 1) * per_page))
     |> limit(^per_page)
-    # Three columns, not the row: article_content alone can be tens of
-    # kilobytes and there are ten thousand of these.
-    |> select([s], {s.name, s.tools, s.updated_at})
+    # A partial struct, not the row: article_content alone can be tens of
+    # kilobytes and there are ten thousand of these. These are the fields
+    # Clients.ids/1 reads, plus what the URLs need.
+    |> select([s], {
+      struct(s, [:name, :transport, :remote_url, :package_registry, :package_identifier]),
+      s.tools,
+      s.updated_at
+    })
     |> Repo.all()
   end
 

@@ -13,10 +13,14 @@ defmodule McpRegistryWeb.SitemapController do
 
   alias McpRegistry.Discovery
   alias McpRegistry.Registry
+  alias McpRegistry.Registry.Clients
   alias McpRegistryWeb.Routes
 
   @per_file Discovery.batch_size()
-  @servers_per_tool_file 1_000
+  # ~18 tools a listing, seven URLs each (the tool plus six clients), so 150
+  # listings is roughly 19,000 URLs -- inside the 50,000 limit with room for a
+  # listing carrying an unusually large tool set.
+  @servers_per_tool_file 150
 
   def robots(conn, _params) do
     conn
@@ -50,15 +54,8 @@ defmodule McpRegistryWeb.SitemapController do
     |> send_xml(conn)
   end
 
-  # The tool pages, chunked by listing. Client pages are deliberately absent:
-  # at 188,000 tools they would be 1.1 million near-identical URLs, which is
-  # the doorway pattern rather than coverage. They stay reachable and useful
-  # for a reader who lands on a tool page, and carry noindex.
-  #
-  # Chunked by listing rather than by URL because a listing's tools travel
-  # together. At #{@servers_per_tool_file} listings and about eighteen tools
-  # each that is roughly 19,000 URLs a file, well inside the 50,000 limit even
-  # for a listing with an unusually large tool set.
+  # Every tool page and every tool-and-client page, chunked by listing. A
+  # listing's tools travel together, so the chunk boundary is the listing.
   def show(conn, %{"file" => "tools-" <> file}) do
     with {page, ".xml"} <- Integer.parse(file),
          true <- page in 1..tool_files() do
@@ -66,9 +63,14 @@ defmodule McpRegistryWeb.SitemapController do
 
       page
       |> Registry.servers_with_tools(@servers_per_tool_file)
-      |> Enum.flat_map(fn {name, tools, updated_at} ->
-        [{base <> Routes.tools_path(name), updated_at}] ++
-          Enum.map(tools, &{base <> Routes.tool_path(name, &1), updated_at})
+      |> Enum.flat_map(fn {server, tools, updated_at} ->
+        clients = Clients.ids(server)
+
+        [{base <> Routes.tools_path(server.name), updated_at}] ++
+          Enum.flat_map(tools, fn tool ->
+            [{base <> Routes.tool_path(server.name, tool), updated_at}] ++
+              Enum.map(clients, &{base <> Routes.client_path(server.name, tool, &1), updated_at})
+          end)
       end)
       |> urlset()
       |> send_xml(conn)

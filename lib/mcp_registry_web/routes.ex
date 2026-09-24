@@ -28,6 +28,9 @@ defmodule McpRegistryWeb.Routes do
     do: tools_path(name) <> "/" <> Tool.slug(tool)
 
   @doc "One tool, as configured for one client."
-  def client_path(%Server{} = server, tool, client_id) when is_binary(client_id),
-    do: tool_path(server, tool) <> "/" <> client_id
+  def client_path(%Server{name: name}, tool, client_id) when is_binary(client_id),
+    do: client_path(name, tool, client_id)
+
+  def client_path(name, tool, client_id) when is_binary(name) and is_binary(client_id),
+    do: tool_path(name, tool) <> "/" <> client_id
 end

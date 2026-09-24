@@ -62,6 +62,19 @@ defmodule McpRegistry.Registry.Clients do
     end
   end
 
+  @doc """
+  Just the client ids for a listing, without rendering six configurations.
+
+  The sitemap needs to know which client pages exist for ten thousand
+  listings. Calling `configs/1` for each would JSON-encode sixty thousand
+  snippets to then throw them away.
+  """
+  def ids(%Server{} = server) do
+    if configurable?(server),
+      do: ~w(claude-code claude-desktop cursor vscode zed windsurf),
+      else: []
+  end
+
   defp configurable?(%Server{} = server) do
     Server.remote?(server) or Install.command(server) != nil
   end

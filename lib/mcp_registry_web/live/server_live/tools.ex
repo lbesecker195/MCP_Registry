@@ -119,12 +119,6 @@ defmodule McpRegistryWeb.ServerLive.Tools do
             "where the configuration lives, what to paste, and what to check when it does not connect."
         )
         |> assign(:canonical_url, absolute(client_path(server, tool, client.id)))
-        # Out of the index, and out of the sitemap with it. There are six of
-        # these per tool and 188,000 tools: a million near-identical pages is
-        # the doorway pattern, not coverage. The page still exists and is still
-        # linked, because a reader who reaches the tool page genuinely wants
-        # "how do I do this in Cursor" -- it just does not ask to be ranked.
-        |> assign(:noindex, true)
     end
   end
 
