@@ -109,7 +109,9 @@ defmodule McpRegistryWeb.ServerLive.CapabilitiesTest do
     test "a listing with no resources redirects", %{conn: conn} do
       server = server_fixture(%{prompts: ~w(only_prompt), resources: []})
 
-      assert {:error, {:live_redirect, %{to: to}}} = live(conn, "/servers/#{server.name}/resources")
+      assert {:error, {:live_redirect, %{to: to}}} =
+               live(conn, "/servers/#{server.name}/resources")
+
       assert to == "/servers/#{server.name}"
     end
   end
