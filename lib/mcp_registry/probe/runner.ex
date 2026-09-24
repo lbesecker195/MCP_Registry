@@ -135,5 +135,14 @@ defmodule McpRegistry.Probe.Runner do
         Logger.warning("Probe could not record #{server.name}: #{inspect(changeset.errors)}")
         server
     end
+  rescue
+    # `Repo.update/1` returns a changeset for a validation failure but raises
+    # for a database one, and the raise leaves through `Task.async_stream` and
+    # takes the whole batch with it. One resource URI longer than the column
+    # cost the other 399 probes in its batch that way. What one endpoint
+    # answers is not under our control, so this must not be fatal to the rest.
+    error ->
+      Logger.warning("Probe could not record #{server.name}: #{Exception.message(error)}")
+      server
   end
 end

@@ -141,6 +141,37 @@ defmodule McpRegistry.ProbeTest do
       assert {:ok, %{tools: ["a"], prompts: [], resources: []}} = Probe.probe(remote_fixture())
     end
 
+    test "an entry too long to be a name is dropped, not truncated" do
+      long = "https://example.test/" <> String.duplicate("a", 3_000)
+
+      stub(fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        case Jason.decode!(body)["method"] do
+          "initialize" ->
+            json(conn, %{jsonrpc: "2.0", id: 1, result: %{}})
+
+          "tools/list" ->
+            json(conn, %{jsonrpc: "2.0", id: 2, result: %{tools: [%{name: "ok_tool"}]}})
+
+          "resources/list" ->
+            json(conn, %{
+              jsonrpc: "2.0",
+              id: 2,
+              result: %{resources: [%{uri: long}, %{uri: "file:///fine"}]}
+            })
+
+          _ ->
+            Plug.Conn.send_resp(conn, 202, "")
+        end
+      end)
+
+      # Half a URI is a wrong URI, so the long one goes entirely and the
+      # usable one beside it survives.
+      assert {:ok, found} = Probe.probe(remote_fixture())
+      assert found.resources == ["file:///fine"]
+    end
+
     test "a packaged server is never executed to find out" do
       # No stub: reaching the network at all would be the bug.
       assert {:error, :not_remote} = Probe.probe(server_fixture())
@@ -230,6 +261,26 @@ defmodule McpRegistry.ProbeTest do
       assert server.prompts == []
       assert server.resources == []
       assert server.probe_status == "ok"
+    end
+
+    test "one row the database rejects does not take the batch with it" do
+      # A resource URI longer than the column killed the async_stream around
+      # it and cost the other 399 probes in its batch.
+      remote_fixture(%{tools: ["declared"]})
+
+      stub(fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        case Jason.decode!(body)["method"] do
+          "initialize" -> json(conn, %{jsonrpc: "2.0", id: 1, result: %{}})
+          "tools/list" -> json(conn, %{jsonrpc: "2.0", id: 2, result: %{tools: [%{name: "t"}]}})
+          _ -> Plug.Conn.send_resp(conn, 202, "")
+        end
+      end)
+
+      # Nothing raises out of run_batch even when a write fails, because the
+      # rescue in record/3 turns it into a warning and the probe still counts.
+      assert %{ok: 1} = Runner.run_batch(limit: 10)
     end
 
     test "packaged listings are never picked up by the runner" do

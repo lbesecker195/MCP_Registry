@@ -145,6 +145,14 @@ defmodule McpRegistry.Probe do
     end
   end
 
+  # Nothing on the other end of this is under our control. A server may answer
+  # with far more items than anyone would page through, or with an entry long
+  # enough to be a document rather than a name, and either would be stored on
+  # every row and rendered on every page. These are generous enough that no
+  # honest server meets them -- the largest seen is 155 resources.
+  @max_items 500
+  @max_length 2_000
+
   # A resource is named by uri, a tool and a prompt by name.
   defp names(items) do
     items
@@ -154,7 +162,12 @@ defmodule McpRegistry.Probe do
       _ -> nil
     end)
     |> Enum.reject(&(&1 in [nil, ""]))
+    # Dropped, not truncated: half a URI is not a shorter URI, it is a wrong
+    # one, and a page built on it would send the reader somewhere that does
+    # not exist.
+    |> Enum.reject(&(String.length(&1) > @max_length))
     |> Enum.uniq()
+    |> Enum.take(@max_items)
   end
 
   # Streamable HTTP may answer as JSON or as a one-event SSE stream, and the

@@ -23,6 +23,9 @@ defmodule McpRegistryWeb.SitemapController do
   @servers_per_tool_file 150
   # Twelve or so agent pages a listing, so 3,000 listings is about 36,000 URLs.
   @servers_per_agent_file 3_000
+  # Skills run far fewer per listing than tools -- a handful rather than
+  # eighteen -- so more listings fit in a file at the same URL budget.
+  @servers_per_skill_file 500
 
   # `/live` is LiveView's transport, not content. Its long-poll fallback carries
   # a fresh CSRF token in the query string, so every fetch mints a URL that has
@@ -56,6 +59,10 @@ defmodule McpRegistryWeb.SitemapController do
         case tool_files() do
           0 -> []
           n -> Enum.map(1..n, &"tools-#{&1}.xml")
+        end ++
+        case skill_files() do
+          0 -> []
+          n -> Enum.map(1..n, &"skills-#{&1}.xml")
         end ++
         Enum.map(1..agent_files(), &"agents-#{&1}.xml")
 
@@ -100,7 +107,7 @@ defmodule McpRegistryWeb.SitemapController do
 
   def show(conn, %{"file" => "tools-" <> file}) do
     with {page, ".xml"} <- Integer.parse(file),
-         true <- page in 1..tool_files() do
+         true <- within(page, tool_files()) do
       base = McpRegistryWeb.Endpoint.url()
 
       page
@@ -112,6 +119,32 @@ defmodule McpRegistryWeb.SitemapController do
           Enum.flat_map(tools, fn tool ->
             [{base <> Routes.tool_path(server.name, tool), updated_at}] ++
               Enum.map(clients, &{base <> Routes.client_path(server.name, tool, &1), updated_at})
+          end)
+      end)
+      |> urlset()
+      |> send_xml(conn)
+    else
+      _ -> not_found(conn)
+    end
+  end
+
+  def show(conn, %{"file" => "skills-" <> file}) do
+    with {page, ".xml"} <- Integer.parse(file),
+         true <- within(page, skill_files()) do
+      base = McpRegistryWeb.Endpoint.url()
+
+      page
+      |> Registry.servers_with_skills(@servers_per_skill_file)
+      |> Enum.flat_map(fn {server, skills, updated_at} ->
+        clients = Clients.ids(server)
+
+        [{base <> Routes.skills_path(server.name), updated_at}] ++
+          Enum.flat_map(skills, fn skill ->
+            [{base <> Routes.skill_path(server.name, skill), updated_at}] ++
+              Enum.map(
+                clients,
+                &{base <> Routes.skill_client_path(server.name, skill, &1), updated_at}
+              )
           end)
       end)
       |> urlset()
@@ -138,6 +171,11 @@ defmodule McpRegistryWeb.SitemapController do
 
   def show(conn, _params), do: not_found(conn)
 
+  # Not `page in 1..count`: when count is 0 that range descends (Elixir gives
+  # `1..0` a step of -1), so `1 in 1..0` is true and the file is served as an
+  # empty 200 rather than a 404.
+  defp within(page, count), do: page >= 1 and page <= count
+
   defp server_files, do: max(ceil(Registry.count_servers() / @per_file), 1)
 
   defp agent_files,
@@ -145,6 +183,9 @@ defmodule McpRegistryWeb.SitemapController do
 
   defp tool_files,
     do: ceil(Registry.count_servers_with_tools() / @servers_per_tool_file)
+
+  defp skill_files,
+    do: ceil(Registry.count_servers_with_skills() / @servers_per_skill_file)
 
   defp urlset(entries) do
     [

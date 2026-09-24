@@ -5,6 +5,7 @@ defmodule McpRegistryWeb.Routes do
   these are built as plain strings rather than through `~p`.
   """
   alias McpRegistry.Registry.Server
+  alias McpRegistry.Registry.Skill
   alias McpRegistry.Registry.Tool
 
   def server_path(%Server{name: name}), do: server_path(name)
@@ -39,4 +40,21 @@ defmodule McpRegistryWeb.Routes do
 
   def client_path(name, tool, client_id) when is_binary(name) and is_binary(client_id),
     do: tool_path(name, tool) <> "/" <> client_id
+
+  @doc "The skills index for a listing, where a listing has any."
+  def skills_path(%Server{name: name}), do: skills_path(name)
+  def skills_path(name) when is_binary(name), do: server_path(name) <> "/skills"
+
+  @doc "One skill's page. Percent-encoded for the same reason `tool_path/2` is."
+  def skill_path(%Server{name: name}, skill) when is_binary(skill), do: skill_path(name, skill)
+
+  def skill_path(name, skill) when is_binary(name) and is_binary(skill),
+    do: skills_path(name) <> "/" <> Skill.slug(skill)
+
+  @doc "One skill, as used from one client."
+  def skill_client_path(%Server{name: name}, skill, client_id) when is_binary(client_id),
+    do: skill_client_path(name, skill, client_id)
+
+  def skill_client_path(name, skill, client_id) when is_binary(name) and is_binary(client_id),
+    do: skill_path(name, skill) <> "/" <> client_id
 end
