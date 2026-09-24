@@ -91,14 +91,22 @@ defmodule McpRegistry.Probe.Runner do
 
   defp probe_and_record(%Server{} = server) do
     case Probe.probe(server) do
-      {:ok, tools} ->
+      {:ok, found} ->
         # Only a successful probe writes tools, and only when it actually found
         # some: an empty list from a server that answered is still not a reason
         # to delete what the publisher declared.
-        changes =
-          if tools == [],
+        tools =
+          if found.tools == [],
             do: %{},
-            else: %{tools: tools, tools_source: "probed"}
+            else: %{tools: found.tools, tools_source: "probed"}
+
+        # Prompts and resources are written even when empty, and the difference
+        # is not an inconsistency. Nothing declares them -- there is no publisher
+        # claim to protect, so the only source is the probe, and "this server
+        # answered and has none" is the finding. Left unwritten, a server with
+        # no prompts would be indistinguishable from one never asked, which is
+        # exactly the count this is being collected to settle.
+        changes = Map.merge(tools, %{prompts: found.prompts, resources: found.resources})
 
         record(server, :ok, changes)
         :ok
