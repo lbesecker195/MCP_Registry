@@ -5,7 +5,7 @@ defmodule McpRegistryWeb.Routes do
   these are built as plain strings rather than through `~p`.
   """
   alias McpRegistry.Registry.Server
-  alias McpRegistry.Registry.Skill
+  alias McpRegistry.Registry.Capability
   alias McpRegistry.Registry.Tool
 
   def server_path(%Server{name: name}), do: server_path(name)
@@ -41,20 +41,27 @@ defmodule McpRegistryWeb.Routes do
   def client_path(name, tool, client_id) when is_binary(name) and is_binary(client_id),
     do: tool_path(name, tool) <> "/" <> client_id
 
-  @doc "The skills index for a listing, where a listing has any."
-  def skills_path(%Server{name: name}), do: skills_path(name)
-  def skills_path(name) when is_binary(name), do: server_path(name) <> "/skills"
+  @doc """
+  The prompts or resources index for a listing.
 
-  @doc "One skill's page. Percent-encoded for the same reason `tool_path/2` is."
-  def skill_path(%Server{name: name}, skill) when is_binary(skill), do: skill_path(name, skill)
+  `kind` is `:prompts` or `:resources`, and it is also the URL segment, so the
+  path and the database column cannot drift apart.
+  """
+  def capabilities_path(%Server{name: name}, kind), do: capabilities_path(name, kind)
 
-  def skill_path(name, skill) when is_binary(name) and is_binary(skill),
-    do: skills_path(name) <> "/" <> Skill.slug(skill)
+  def capabilities_path(name, kind) when is_binary(name) and kind in [:prompts, :resources],
+    do: server_path(name) <> "/" <> Atom.to_string(kind)
 
-  @doc "One skill, as used from one client."
-  def skill_client_path(%Server{name: name}, skill, client_id) when is_binary(client_id),
-    do: skill_client_path(name, skill, client_id)
+  @doc "One prompt or resource. Slugged, because a resource URI has slashes in it."
+  def capability_path(%Server{name: name}, kind, item), do: capability_path(name, kind, item)
 
-  def skill_client_path(name, skill, client_id) when is_binary(name) and is_binary(client_id),
-    do: skill_path(name, skill) <> "/" <> client_id
+  def capability_path(name, kind, item) when is_binary(name) and is_binary(item),
+    do: capabilities_path(name, kind) <> "/" <> Capability.slug(item)
+
+  @doc "One prompt or resource, as used from one client."
+  def capability_client_path(%Server{name: name}, kind, item, client_id),
+    do: capability_client_path(name, kind, item, client_id)
+
+  def capability_client_path(name, kind, item, client_id) when is_binary(client_id),
+    do: capability_path(name, kind, item) <> "/" <> client_id
 end

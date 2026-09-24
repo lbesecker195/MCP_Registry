@@ -214,34 +214,35 @@ defmodule McpRegistry.Registry do
   end
 
   @doc """
-  A page of active listings that have at least one skill, with their skills.
+  A page of active listings that have at least one prompt or resource.
 
   The same shape as `servers_with_tools/2` and for the same reason: a partial
-  struct, because `article_content` alone runs to tens of kilobytes.
+  struct, because `article_content` alone runs to tens of kilobytes and there
+  are thousands of these.
   """
-  def servers_with_skills(page, per_page) when page >= 1 do
+  def servers_with(kind, page, per_page) when kind in [:prompts, :resources] and page >= 1 do
     Server
-    |> with_skills()
+    |> having_any(kind)
     |> order_by([s], asc: s.id)
     |> offset(^((page - 1) * per_page))
     |> limit(^per_page)
     |> select([s], {
       struct(s, [:name, :transport, :remote_url, :package_registry, :package_identifier]),
-      s.prompts,
+      field(s, ^kind),
       s.updated_at
     })
     |> Repo.all()
   end
 
-  @doc "How many active listings offer at least one skill."
-  def count_servers_with_skills do
-    Server |> with_skills() |> Repo.aggregate(:count)
+  @doc "How many active listings have at least one prompt, or one resource."
+  def count_servers_with(kind) when kind in [:prompts, :resources] do
+    Server |> having_any(kind) |> Repo.aggregate(:count)
   end
 
-  defp with_skills(query) do
+  defp having_any(query, kind) do
     query
     |> where([s], s.status == "active")
-    |> where([s], fragment("cardinality(?) > 0", s.prompts))
+    |> where([s], fragment("cardinality(?) > 0", field(s, ^kind)))
   end
 
   @doc """
