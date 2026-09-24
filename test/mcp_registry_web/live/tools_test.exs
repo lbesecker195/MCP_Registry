@@ -100,16 +100,36 @@ defmodule McpRegistryWeb.ServerLive.ToolsTest do
     assert redirected_to(conn, 301) == "/"
   end
 
-  test "the tools sitemap carries the index, tool and client URLs", %{conn: conn} do
+  test "the tools sitemap carries index, tool and client URLs", %{conn: conn} do
     server = with_tools(~w(get_forecast))
 
-    xml = conn |> get("/sitemaps/tools.xml") |> response(200)
+    xml = conn |> get("/sitemaps/tools-1.xml") |> response(200)
 
     assert xml =~ "/servers/#{server.name}/tools</loc>"
     assert xml =~ "/servers/#{server.name}/tools/get_forecast</loc>"
-    assert xml =~ "/servers/#{server.name}/tools/get_forecast/cursor</loc>"
 
-    # And the index advertises the file.
-    assert conn |> get("/sitemap.xml") |> response(200) =~ "/sitemaps/tools.xml"
+    # Client pages are indexable and listed: each carries a different config
+    # format, path and caveats, so they are distinct content, not boilerplate.
+    assert xml =~ "/tools/get_forecast/cursor</loc>"
+    assert xml =~ "/tools/get_forecast/vscode</loc>"
+
+    assert conn |> get("/sitemap.xml") |> response(200) =~ "/sitemaps/tools-1.xml"
+  end
+
+  test "every page in the silo is indexable", %{conn: conn} do
+    server = with_tools()
+
+    for path <- ["/tools", "/tools/get_forecast", "/tools/get_forecast/cursor"] do
+      html = conn |> get("/servers/#{server.name}#{path}") |> html_response(200)
+      refute html =~ "noindex", "#{path} should be indexable"
+    end
+  end
+
+  test "a pending listing still stays out of the index", %{conn: conn} do
+    # The one noindex rule that remains, and it predates the silo.
+    server = server_fixture(%{status: "pending", tools: ~w(get_forecast)})
+
+    html = conn |> get("/servers/#{server.name}/tools/get_forecast") |> html_response(200)
+    assert html =~ ~s(<meta name="robots" content="noindex">)
   end
 end

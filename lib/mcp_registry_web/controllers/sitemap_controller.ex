@@ -17,6 +17,10 @@ defmodule McpRegistryWeb.SitemapController do
   alias McpRegistryWeb.Routes
 
   @per_file Discovery.batch_size()
+  # ~18 tools a listing, seven URLs each (the tool plus six clients), so 150
+  # listings is roughly 19,000 URLs -- inside the 50,000 limit with room for a
+  # listing carrying an unusually large tool set.
+  @servers_per_tool_file 150
 
   def robots(conn, _params) do
     conn
@@ -29,7 +33,10 @@ defmodule McpRegistryWeb.SitemapController do
 
     files =
       ["pages.xml" | Enum.map(1..server_files(), &"servers-#{&1}.xml")] ++
-        if(Registry.servers_with_tools() == [], do: [], else: ["tools.xml"])
+        case tool_files() do
+          0 -> []
+          n -> Enum.map(1..n, &"tools-#{&1}.xml")
+        end
 
     [
       ~s(<?xml version="1.0" encoding="UTF-8"?>\n),
@@ -47,26 +54,29 @@ defmodule McpRegistryWeb.SitemapController do
     |> send_xml(conn)
   end
 
-  # Every tool page, and every tool-and-client page, in one file. The tools
-  # silo is small -- a few hundred names across the whole catalogue -- so it
-  # does not need the chunking the listings do.
-  def show(conn, %{"file" => "tools.xml"}) do
-    base = McpRegistryWeb.Endpoint.url()
+  # Every tool page and every tool-and-client page, chunked by listing. A
+  # listing's tools travel together, so the chunk boundary is the listing.
+  def show(conn, %{"file" => "tools-" <> file}) do
+    with {page, ".xml"} <- Integer.parse(file),
+         true <- page in 1..tool_files() do
+      base = McpRegistryWeb.Endpoint.url()
 
-    Registry.servers_with_tools()
-    |> Enum.flat_map(fn server ->
-      client_ids = Enum.map(Clients.configs(server), & &1.id)
+      page
+      |> Registry.servers_with_tools(@servers_per_tool_file)
+      |> Enum.flat_map(fn {server, tools, updated_at} ->
+        clients = Clients.ids(server)
 
-      [{base <> Routes.tools_path(server), server.updated_at}] ++
-        Enum.flat_map(server.tools, fn tool ->
-          [{base <> Routes.tool_path(server, tool), server.updated_at}] ++
-            Enum.map(client_ids, fn id ->
-              {base <> Routes.client_path(server, tool, id), server.updated_at}
-            end)
-        end)
-    end)
-    |> urlset()
-    |> send_xml(conn)
+        [{base <> Routes.tools_path(server.name), updated_at}] ++
+          Enum.flat_map(tools, fn tool ->
+            [{base <> Routes.tool_path(server.name, tool), updated_at}] ++
+              Enum.map(clients, &{base <> Routes.client_path(server.name, tool, &1), updated_at})
+          end)
+      end)
+      |> urlset()
+      |> send_xml(conn)
+    else
+      _ -> not_found(conn)
+    end
   end
 
   def show(conn, %{"file" => "servers-" <> file}) do
@@ -87,6 +97,9 @@ defmodule McpRegistryWeb.SitemapController do
   def show(conn, _params), do: not_found(conn)
 
   defp server_files, do: max(ceil(Registry.count_servers() / @per_file), 1)
+
+  defp tool_files,
+    do: ceil(Registry.count_servers_with_tools() / @servers_per_tool_file)
 
   defp urlset(entries) do
     [
