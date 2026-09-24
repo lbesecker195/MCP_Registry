@@ -49,3 +49,8 @@ config :mcp_registry, :discovery,
 config :mcp_registry, :official_registry,
   page_delay_ms: 0,
   req_options: [plug: {Req.Test, McpRegistry.OfficialRegistry}, retry_delay: 0, max_retries: 2]
+
+# Off under test: the cache table is global while async tests each hold their
+# own database sandbox, so one test can be served a value computed from rows
+# another test can see and it cannot. See McpRegistry.Cache.
+config :mcp_registry, :cache_enabled, false

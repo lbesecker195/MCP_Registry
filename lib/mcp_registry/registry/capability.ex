@@ -33,9 +33,17 @@ defmodule McpRegistry.Registry.Capability do
   slug and cost length. Other schemes stay: `file`, `ui` and `s3` distinguish
   resources that would otherwise read alike.
 
-  Two names can in principle collide — `review_diff` and `review-diff`, or
-  the same URL under both http and https. `find/2` then answers with the
-  first, which is a worse page than it could be but never a wrong one.
+  A name with no Latin letters or digits at all — 192 of the catalogue's
+  21,837 prompts and resources are written in scripts that have none — would
+  otherwise reduce to nothing, and every such name on a server would collide
+  on the same empty slug with only the first reachable. Those fall back to a
+  short hash of the name, which is an unlovely URL but a working one, and the
+  page still shows the name as its publisher wrote it.
+
+  Two names that both survive can still in principle collide — `review_diff`
+  and `review-diff`, or the same URL under http and https. `find/2` then
+  answers with the first, which is a worse page than it could be but never a
+  wrong one.
   """
   def slug(name) when is_binary(name) do
     name
@@ -45,9 +53,19 @@ defmodule McpRegistry.Registry.Capability do
     |> String.trim("-")
     |> String.slice(0, 120)
     |> case do
-      "" -> "item"
+      "" -> "item-" <> hash(name)
       slug -> slug
     end
+  end
+
+  # Stable across runs and processes: `:erlang.phash2/1` is specified to be
+  # portable, unlike `:erlang.phash/2`, so a URL minted today still resolves
+  # tomorrow. Base 36 keeps it short.
+  defp hash(name) do
+    name
+    |> :erlang.phash2()
+    |> Integer.to_string(36)
+    |> String.downcase()
   end
 
   @doc """
