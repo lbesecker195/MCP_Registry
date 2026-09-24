@@ -3,11 +3,13 @@ defmodule McpRegistryWeb.SitemapControllerTest do
 
   import McpRegistry.RegistryFixtures
 
-  test "robots.txt allows everything and names the sitemap", %{conn: conn} do
+  test "robots.txt opens the content and names the sitemap", %{conn: conn} do
     body = conn |> get("/robots.txt") |> text_response(200)
 
-    assert body =~ "User-agent: *\nDisallow:\n"
+    assert body =~ "User-agent: *"
+    assert body =~ "Allow: /"
     assert body =~ "Sitemap: http://localhost:4000/sitemap.xml"
+    refute body =~ "Disallow: /servers"
   end
 
   test "the index lists the pages file and one file per 10,000 listings", %{conn: conn} do
@@ -49,5 +51,19 @@ defmodule McpRegistryWeb.SitemapControllerTest do
         ] do
       assert conn |> get(path) |> response(404) == ""
     end
+  end
+
+  test "robots.txt keeps crawlers out of the LiveView transport", %{conn: conn} do
+    body = conn |> get("/robots.txt") |> response(200)
+
+    # /live/longpoll carries a fresh CSRF token per request, so each fetch is a
+    # URL never seen before: an endless supply of pages to a crawler that
+    # cannot hold a websocket.
+    assert body =~ "Disallow: /live/"
+    assert body =~ "Disallow: /api/"
+    assert body =~ "Sitemap: "
+    # Content must stay crawlable.
+    assert body =~ "Allow: /"
+    refute body =~ "Disallow: /servers"
   end
 end

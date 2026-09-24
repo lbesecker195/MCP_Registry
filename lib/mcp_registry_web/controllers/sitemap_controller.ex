@@ -22,10 +22,28 @@ defmodule McpRegistryWeb.SitemapController do
   # listing carrying an unusually large tool set.
   @servers_per_tool_file 150
 
+  # `/live` is LiveView's transport, not content. Its long-poll fallback carries
+  # a fresh CSRF token in the query string, so every fetch mints a URL that has
+  # never been seen before -- an endless supply of new pages to a crawler that
+  # cannot hold a websocket. Googlebot spent 39 of its requests there against 8
+  # on real pages before this was disallowed.
+  #
+  # The JSON API is excluded too: it is for programs, it duplicates what the
+  # listing pages say, and every request spent there is one not spent on a page
+  # that can rank. llms.txt stays allowed -- it is written for agents to read.
   def robots(conn, _params) do
+    body = """
+    User-agent: *
+    Disallow: /live/
+    Disallow: /api/
+    Allow: /
+
+    Sitemap: #{McpRegistryWeb.Endpoint.url()}/sitemap.xml
+    """
+
     conn
     |> put_resp_header("cache-control", "public, max-age=86400")
-    |> text("User-agent: *\nDisallow:\n\nSitemap: #{McpRegistryWeb.Endpoint.url()}/sitemap.xml\n")
+    |> text(body)
   end
 
   def index(conn, _params) do

@@ -163,6 +163,39 @@ defmodule McpRegistryWeb.Plugs.GeoBlockTest do
     end
   end
 
+  describe "crawlers" do
+    test "a search engine is never blocked, wherever it appears to be" do
+      configure(@rule, always(@mountain_view))
+
+      for agent <- [
+            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+            "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+            "Mozilla/5.0 (compatible; ClaudeBot/1.0)",
+            "Mozilla/5.0 (compatible; GPTBot/1.1)"
+          ] do
+        conn =
+          Phoenix.ConnTest.build_conn()
+          |> Plug.Conn.put_req_header("user-agent", agent)
+          |> Map.put(:remote_ip, @public_ip)
+          |> GeoBlock.call([])
+
+        refute conn.halted, "#{agent} should not be blocked"
+      end
+    end
+
+    test "an ordinary browser in the blocked city still is" do
+      configure(@rule, always(@mountain_view))
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Conn.put_req_header("user-agent", "Mozilla/5.0 (Macintosh) Safari/605.1.15")
+        |> Map.put(:remote_ip, @public_ip)
+        |> GeoBlock.call([])
+
+      assert conn.status == 403
+    end
+  end
+
   describe "the response" do
     test "a blocked request gets 403 and never reaches the router" do
       configure(@rule, always(@mountain_view))
