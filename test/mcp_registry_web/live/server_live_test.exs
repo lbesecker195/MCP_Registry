@@ -87,7 +87,7 @@ defmodule McpRegistryWeb.ServerLiveTest do
 
       {:ok, _view, html} = live(conn, "/servers/#{server.name}")
 
-      assert html =~ "https://avatars.githubusercontent.com/troyhunt?size=96"
+      assert html =~ "https://github.com/troyhunt.png?size=96"
       # It removes itself if it fails, so the monogram beneath shows instead.
       assert html =~ ~s(onerror="this.remove\(\)")
       assert html =~ ~s(referrerpolicy="no-referrer")
@@ -104,7 +104,7 @@ defmodule McpRegistryWeb.ServerLiveTest do
       {:ok, _view, html} = live(conn, "/servers/#{server.name}")
 
       assert html =~ "https://acme.test/logo.svg"
-      refute html =~ "avatars.githubusercontent.com"
+      refute html =~ "github.com/acme.png"
       assert html =~ "object-contain"
     end
 
@@ -125,7 +125,7 @@ defmodule McpRegistryWeb.ServerLiveTest do
       server_fixture(%{name: "io.github.gridowner/x-#{System.unique_integer([:positive])}"})
       {:ok, _view, html} = live(conn, ~p"/servers")
 
-      assert html =~ "avatars.githubusercontent.com/gridowner"
+      assert html =~ "github.com/gridowner.png"
     end
   end
 

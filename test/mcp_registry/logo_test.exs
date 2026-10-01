@@ -14,19 +14,19 @@ defmodule McpRegistry.Registry.LogoTest do
 
     test "an io.github namespace gets that verified owner's avatar" do
       assert {:github, url} = Logo.for_server(server(%{name: "io.github.troyhunt/hibp"}))
-      assert url == "https://avatars.githubusercontent.com/troyhunt?size=96"
+      assert url == "https://github.com/troyhunt.png?size=96"
     end
 
     test "a domain namespace falls back to its repository owner" do
       s = server(%{repository_url: "https://github.com/cloudflare/mcp-server-cloudflare"})
       assert {:repository, url} = Logo.for_server(s)
-      assert url =~ "/cloudflare?"
+      assert url =~ "/cloudflare.png?"
     end
 
     test "the namespace beats the repository, because only it is verified" do
       s = server(%{name: "io.github.alice/x", repository_url: "https://github.com/bob/x"})
       assert {:github, url} = Logo.for_server(s)
-      assert url =~ "/alice?"
+      assert url =~ "/alice.png?"
     end
 
     test "nothing on the record means no logo, never a guess" do
