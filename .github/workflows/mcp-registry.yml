@@ -135,9 +135,22 @@ jobs:
           enc() { jq -rn --arg v "$1" '$v|@uri'; }
           name=$(jq -r .name server.json)
           version=$(jq -r .version server.json)
-          status=$(curl -s -o /dev/null -w '%{http_code}' "$api/$(enc "$name")/versions/$(enc "$version")")
-          echo "$name $version -> HTTP $status"
-          if [ "$status" = 200 ]; then echo "publish=false" >> "$GITHUB_OUTPUT"; else echo "publish=true" >> "$GITHUB_OUTPUT"; fi
+          # Only a 404 means "not published yet". Anything else -- a 5xx in
+          # particular -- is the registry having a moment, and publishing on it
+          # tries to publish a version that already exists and fails the run.
+          # Retry, then skip rather than guess: the next deploy checks again.
+          for attempt in 1 2 3 4; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' "$api/$(enc "$name")/versions/$(enc "$version")")
+            echo "$name $version -> HTTP $status (attempt $attempt)"
+            case "$status" in 200|404) break ;; esac
+            sleep $((attempt * 5))
+          done
+          case "$status" in
+            404) echo "publish=true" >> "$GITHUB_OUTPUT" ;;
+            200) echo "publish=false" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "::warning::Registry answered HTTP $status; not publishing this run."
+                 echo "publish=false" >> "$GITHUB_OUTPUT" ;;
+          esac
           retire=""
           for old in $RETIRED_SERVER_NAMES; do
             state=$(curl -s "$api/$(enc "$old")/versions/latest?include_deleted=true" \
