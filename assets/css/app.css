@@ -32,6 +32,9 @@
   color-scheme: light;
 
   --canvas: oklch(99% 0.003 250);
+  /* Behind a publisher's logo. Light in both themes: most logos are drawn for
+     white, and a transparent mark on a dark tile can vanish entirely. */
+  --logo-tile: oklch(100% 0 0);
   --surface: oklch(97.2% 0.005 250);
   --sunken: oklch(95.2% 0.008 253);
   --ink: oklch(21% 0.028 258);
@@ -56,6 +59,8 @@
   color-scheme: dark;
 
   --canvas: oklch(13.2% 0.032 264);
+  /* Off-white rather than white, so a row of logos does not glare. */
+  --logo-tile: oklch(93% 0.006 250);
   --surface: oklch(20.4% 0.038 264);
   --sunken: oklch(10.5% 0.028 264);
   --ink: oklch(96.5% 0.008 250);

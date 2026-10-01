@@ -732,6 +732,57 @@ defmodule McpRegistryWeb.CoreComponents do
   end
 
   @doc """
+  A listing's logo, falling back to its monogram.
+
+  The source is chosen by `McpRegistry.Registry.Logo` -- the publisher's
+  declared icon, else a verified GitHub owner's avatar -- and when there is
+  none the monogram is drawn instead.
+
+  The image sits on top of the monogram rather than replacing it. If it fails
+  to load (a publisher moves their icon, a host goes down) it removes itself
+  and the monogram underneath is what the reader sees: never a broken-image
+  glyph, and no layout shift either way, because the tile's size is fixed
+  before anything loads.
+
+  `referrerpolicy="no-referrer"` keeps the page a visitor was reading out of
+  third-party logs. Declared icons are drawn with padding on a light tile,
+  since most are transparent marks designed for white; avatars are opaque
+  squares and fill the tile.
+
+  ## Examples
+
+      <.server_logo server={@server} size="size-12 text-lg" />
+  """
+  attr :server, :map, required: true
+  attr :size, :string, default: "size-10"
+  attr :class, :any, default: nil
+
+  def server_logo(assigns) do
+    assigns = assign(assigns, :logo, McpRegistry.Registry.Logo.for_server(assigns.server))
+
+    ~H"""
+    <span class={["relative inline-flex shrink-0", @size, @class]}>
+      <.monogram name={@server.name} size={@size} />
+      <img
+        :if={@logo}
+        src={elem(@logo, 1)}
+        alt=""
+        width="96"
+        height="96"
+        loading="lazy"
+        decoding="async"
+        referrerpolicy="no-referrer"
+        onerror="this.remove()"
+        class={[
+          "absolute inset-0 size-full rounded-box border border-rule bg-logo-tile",
+          if(elem(@logo, 0) == :declared, do: "object-contain p-[12%]", else: "object-cover")
+        ]}
+      />
+    </span>
+    """
+  end
+
+  @doc """
   The identity tile for a listing: two initials on a hue derived from the name.
 
   The hue is a hash of the full reverse-DNS name, so a given server draws the

@@ -128,7 +128,7 @@ defmodule McpRegistryWeb.ServerLive.Agent do
 
       <header class="rise space-y-4 border-b border-rule pb-8">
         <div class="flex items-start gap-3.5">
-          <.monogram name={@server.name} size="size-12 text-lg" />
+          <.server_logo server={@server} size="size-12 text-lg" />
           <div class="min-w-0 space-y-1">
             <h1 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
               {@server.title} for {@client.label}

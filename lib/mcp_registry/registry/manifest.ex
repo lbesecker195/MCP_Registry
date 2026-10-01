@@ -24,6 +24,7 @@ defmodule McpRegistry.Registry.Manifest do
     }
     |> put_if("repository", repository(server.repository_url))
     |> put_if("websiteUrl", server.website_url)
+    |> put_if("icons", server.icon_url && [%{"src" => server.icon_url}])
     |> put_if("packages", packages(server))
     |> put_if("remotes", remotes(server))
     |> Map.put(
@@ -67,6 +68,7 @@ defmodule McpRegistry.Registry.Manifest do
       "package_identifier" => package && present(package["identifier"]),
       "repository_url" => present(get_in(json, ["repository", "url"])),
       "website_url" => present(json["websiteUrl"]),
+      "icon_url" => McpRegistry.Registry.Logo.pick(json["icons"]),
       "license" => meta[@meta_prefix <> "license"] || json["license"],
       "env_vars" => package |> env_vars(),
       "tags" => meta[@meta_prefix <> "tags"] || json["tags"] || [],

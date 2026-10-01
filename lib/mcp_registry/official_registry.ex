@@ -66,14 +66,24 @@ defmodule McpRegistry.OfficialRegistry do
   Runs one sync. `mode:` is `:auto` (the default: incremental after a recent
   full sync, otherwise full), `:full` or `:incremental`.
 
+  Pass `reapply: true` to push every upstream entry through the mapping again,
+  including the ones whose `updatedAt` has not moved. Normal runs skip those --
+  correctly, since nothing upstream changed -- but that also means a field the
+  mapping newly reads, such as `icons`, would never reach existing listings.
+  A re-apply run is always full, writes only rows whose mapped fields actually
+  differ, and announces nothing: it changes how we read the data, not the data.
+
   Returns `{:ok, stats}`, `{:error, reason, stats}` or `{:error, :already_running}`.
   """
   def sync(opts \\ []) do
+    reapply? = Keyword.get(opts, :reapply, false)
+    mode = if reapply?, do: :full, else: Keyword.get(opts, :mode, :auto)
+
     Repo.checkout(
       fn ->
         if locked?() do
           try do
-            run(resolve_mode(Keyword.get(opts, :mode, :auto)))
+            run(resolve_mode(mode), reapply?)
           after
             Repo.query!("SELECT pg_advisory_unlock($1)", [@lock_key])
           end
@@ -114,7 +124,7 @@ defmodule McpRegistry.OfficialRegistry do
     |> Repo.one()
   end
 
-  defp run(mode) do
+  defp run(mode, reapply?) do
     started_at = DateTime.utc_now()
 
     # We hold the lock, so any run still marked running was interrupted.
@@ -146,7 +156,11 @@ defmodule McpRegistry.OfficialRegistry do
 
     outcome =
       try do
-        pages(nil, params, Map.merge(empty, %{run_at: started_at, seen: MapSet.new()}))
+        pages(
+          nil,
+          params,
+          Map.merge(empty, %{run_at: started_at, seen: MapSet.new(), reapply?: reapply?})
+        )
       rescue
         exception -> {:error, Exception.message(exception), empty}
       end
@@ -178,6 +192,9 @@ defmodule McpRegistry.OfficialRegistry do
     # What a failed run wrote before it stopped is live too, so announce it
     # either way. New pages go first: they are the ones no crawler has seen.
     %{new: new, updated: updated, removed: removed} = state.touched
+    # A re-apply run touches listings whose upstream did not change, so its
+    # "updated" are ours, not the publishers' -- not worth a crawler's visit.
+    updated = if reapply?, do: [], else: updated
     Discovery.announce(new ++ removed ++ updated, feed: new != [])
 
     if status == "ok", do: {:ok, stats}, else: {:error, error, stats}
@@ -289,28 +306,42 @@ defmodule McpRegistry.OfficialRegistry do
       {:duplicate, nil}
     else
       existing = Repo.get_by(Server, name: name)
-      {decide(existing, json, upstream_status, updated_at, state.run_at), name}
+      {decide(existing, json, upstream_status, updated_at, state.run_at, state.reapply?), name}
     end
   end
 
   defp apply_entry(_entry, _state), do: {:invalid, nil}
 
-  defp decide(%Server{origin: "official"} = server, _json, "deleted", _updated_at, _run_at) do
+  defp decide(%Server{origin: "official"} = server, _json, "deleted", _updated_at, _run_at, _re) do
     Repo.delete!(server)
     :deleted
   end
 
-  defp decide(_existing, _json, "deleted", _updated_at, _run_at), do: :ignored_deleted
+  defp decide(_existing, _json, "deleted", _updated_at, _run_at, _re), do: :ignored_deleted
 
-  defp decide(%Server{origin: "local", status: "active"}, _json, _status, _updated_at, _run_at),
-    do: :kept_local
+  defp decide(
+         %Server{origin: "local", status: "active"},
+         _json,
+         _status,
+         _updated_at,
+         _run_at,
+         _re
+       ),
+       do: :kept_local
 
-  defp decide(%Server{origin: origin, source_updated_at: same}, _json, status, same, _run_at)
+  defp decide(
+         %Server{origin: origin, source_updated_at: same},
+         _json,
+         status,
+         same,
+         _run_at,
+         false
+       )
        when origin in ["official", "seed"] and not is_nil(same) and
               status in ["active", "deprecated"],
        do: :unchanged
 
-  defp decide(existing, json, upstream_status, updated_at, run_at) do
+  defp decide(existing, json, upstream_status, updated_at, run_at, reapply?) do
     attrs =
       json
       |> Manifest.from_map()
@@ -330,12 +361,27 @@ defmodule McpRegistry.OfficialRegistry do
         |> Ecto.Changeset.put_change(:source_updated_at, updated_at)
         |> Ecto.Changeset.put_change(:synced_at, run_at)
 
-      case {existing, Repo.insert_or_update(changeset)} do
-        {_, {:error, _changeset}} -> :invalid
-        {nil, {:ok, _}} -> :inserted
-        {%Server{origin: "local"}, {:ok, _}} -> :replaced_pending
-        {_, {:ok, _}} -> :updated
+      if reapply? and not is_nil(existing) and only_bookkeeping?(changeset) do
+        :unchanged
+      else
+        write(existing, changeset)
       end
+    end
+  end
+
+  # Under re-apply, a row whose mapped fields all came out the same needs no
+  # write. synced_at and source_updated_at always "change" -- they are stamped
+  # on every pass -- so they do not count as a difference.
+  defp only_bookkeeping?(changeset) do
+    changeset.changes |> Map.drop([:synced_at, :source_updated_at]) |> map_size() == 0
+  end
+
+  defp write(existing, changeset) do
+    case {existing, Repo.insert_or_update(changeset)} do
+      {_, {:error, _changeset}} -> :invalid
+      {nil, {:ok, _}} -> :inserted
+      {%Server{origin: "local"}, {:ok, _}} -> :replaced_pending
+      {_, {:ok, _}} -> :updated
     end
   end
 

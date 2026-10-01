@@ -215,7 +215,7 @@ defmodule McpRegistryWeb.ServerLive.Home do
               class="group flex h-full flex-col gap-2 rounded-box border border-rule bg-surface/50 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:bg-surface hover:shadow-md"
             >
               <div class="flex items-start gap-3">
-                <.monogram name={server.name} size="size-8 text-[11px]" />
+                <.server_logo server={server} size="size-8 text-[11px]" />
 
                 <div class="min-w-0 flex-1 space-y-1">
                   <div class="flex items-start justify-between gap-3">
