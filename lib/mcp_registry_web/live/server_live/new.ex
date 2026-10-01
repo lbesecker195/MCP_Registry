@@ -51,7 +51,7 @@ defmodule McpRegistryWeb.ServerLive.New do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:submit}>
+    <Layouts.app flash={@flash} active={:submit} sponsors={true}>
       <.header>
         Submit an MCP server
         <:subtitle>

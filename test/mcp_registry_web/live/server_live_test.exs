@@ -88,7 +88,7 @@ defmodule McpRegistryWeb.ServerLiveTest do
 
     # The hook scrolls the sidebar with the page until its last panel shows,
     # so the sponsors are reached early rather than at the end of the page.
-    assert aside =~ ~s(phx-hook="McpRegistryWeb.ServerLive.Show.StickyAside")
+    assert aside =~ ~s(phx-hook="McpRegistryWeb.Layouts.StickySidebar")
     # It sets `style` from the browser; a patch must not strip it.
     assert aside =~ "ignore_attrs"
     assert aside =~ "sponsors-heading"

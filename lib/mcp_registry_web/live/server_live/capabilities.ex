@@ -138,7 +138,7 @@ defmodule McpRegistryWeb.ServerLive.Capabilities do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:servers} wide={true}>
+    <Layouts.app flash={@flash} active={:servers} wide={true} sponsors={true}>
       <:rail>
         <.crumbs
           server={@server}

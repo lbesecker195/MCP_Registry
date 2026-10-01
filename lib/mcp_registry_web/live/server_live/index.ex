@@ -69,7 +69,7 @@ defmodule McpRegistryWeb.ServerLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:servers}>
+    <Layouts.app flash={@flash} active={:servers} sponsors={true}>
       <div class="rise">
         <.header>
           Browse MCP servers

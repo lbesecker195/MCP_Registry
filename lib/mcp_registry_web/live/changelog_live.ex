@@ -31,7 +31,7 @@ defmodule McpRegistryWeb.ChangelogLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:servers} wide={true}>
+    <Layouts.app flash={@flash} active={:servers} wide={true} sponsors={true}>
       <header class="rise space-y-3 border-b border-rule pb-6">
         <h1 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
           What changed in MCP servers
