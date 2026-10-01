@@ -114,7 +114,9 @@ config :mcp_registry, :probe,
   enabled: false,
   batch_size: 50,
   concurrency: 4,
-  recheck_days: 14,
+  # Weekly, so a listing's changelog is at most a week behind its server.
+  # About 3,000 endpoints a day, against a scheduler that can ask 28 times that.
+  recheck_days: 7,
   interval_ms: :timer.minutes(5),
   initial_delay_ms: :timer.minutes(3),
   req_options: []

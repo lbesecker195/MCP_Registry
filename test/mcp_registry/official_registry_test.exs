@@ -325,6 +325,41 @@ defmodule McpRegistry.OfficialRegistryTest do
     assert {:ok, %{updated: 0, unchanged: 1}} = OfficialRegistry.sync(reapply: true)
   end
 
+  test "a publisher's version bump lands in the changelog; a re-apply does not" do
+    serve([[entry("io.github.acme/bumped")]])
+    assert {:ok, _} = OfficialRegistry.sync(mode: :full)
+    # First import is a baseline, not a change.
+    assert Repo.all(McpRegistry.Changes.Change) == []
+
+    serve([
+      [
+        entry("io.github.acme/bumped", %{"version" => "1.1.0"}, %{
+          "updatedAt" => "2026-09-20T00:00:00Z"
+        })
+      ]
+    ])
+
+    assert {:ok, %{updated: 1}} = OfficialRegistry.sync(mode: :full)
+    assert [change] = Repo.all(McpRegistry.Changes.Change)
+    assert change.kind == "server_json"
+    assert change.fields["version"] == ["1.0.0", "1.1.0"]
+    assert change.source == "sync"
+
+    # Re-apply with a newly read field: ours, not the publisher's.
+    serve([
+      [
+        entry(
+          "io.github.acme/bumped",
+          %{"version" => "1.1.0", "icons" => [%{"src" => "https://acme.test/i.svg"}]},
+          %{"updatedAt" => "2026-09-20T00:00:00Z"}
+        )
+      ]
+    ])
+
+    assert {:ok, %{updated: 1}} = OfficialRegistry.sync(reapply: true)
+    assert Repo.aggregate(McpRegistry.Changes.Change, :count) == 1
+  end
+
   test "server_url points at the official API entry" do
     assert OfficialRegistry.server_url("io.github.acme/weather") ==
              "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.acme%2Fweather/versions/latest"

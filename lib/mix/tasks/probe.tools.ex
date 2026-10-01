@@ -26,7 +26,7 @@ defmodule Mix.Tasks.Probe.Tools do
         strict: [limit: :integer, concurrency: :integer, recheck_days: :integer, all: :boolean]
       )
 
-    pending = Runner.pending(Keyword.get(opts, :recheck_days, 14))
+    pending = Runner.pending(Keyword.get(opts, :recheck_days, 7))
     Mix.shell().info("#{pending} remote listing(s) due")
 
     if Keyword.get(opts, :all, false), do: loop(opts, %{}), else: report(Runner.run_batch(opts))
