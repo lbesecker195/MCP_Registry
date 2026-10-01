@@ -167,7 +167,26 @@ defmodule McpRegistryWeb.ServerLive.Changelog do
         </div>
       </dl>
 
-      <ul :if={@change.added != [] or @change.removed != []} class="flex flex-wrap gap-1.5">
+      <p :if={@change.document_url} class="font-mono text-[11px] break-all text-dim">
+        <a
+          href={@change.document_url}
+          rel="nofollow noopener"
+          class="underline decoration-rule-strong underline-offset-4 transition-colors hover:decoration-brand"
+        >
+          {@change.document_url}
+        </a>
+      </p>
+
+      <%!-- A document changes by lines of prose, which read as a diff, not as chips. --%>
+      <pre
+        :if={@change.document_url && (@change.added != [] or @change.removed != [])}
+        class="scroll-thin max-h-80 overflow-auto rounded-field border border-rule bg-sunken p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap"
+      ><span :for={line <- Enum.take(@change.removed, shown())} class="block text-dim line-through decoration-danger/50"><span class="text-danger no-underline" aria-label="removed">− </span>{line}</span><span :for={line <- Enum.take(@change.added, shown())} class="block text-ink"><span class="text-success" aria-label="added">+ </span>{line}</span></pre>
+
+      <ul
+        :if={is_nil(@change.document_url) and (@change.added != [] or @change.removed != [])}
+        class="flex flex-wrap gap-1.5"
+      >
         <li :for={item <- Enum.take(@change.added, shown())}>
           <span class="inline-block rounded-full border border-success/40 px-2 py-0.5 font-mono text-[11px] break-all text-ink">
             <span class="text-success" aria-label="added">+</span> {item}

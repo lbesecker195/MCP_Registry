@@ -105,6 +105,32 @@ defmodule McpRegistryWeb.ChangelogTest do
     assert pages =~ "/changelog</loc>"
   end
 
+  test "a listing whose only history is its llms.txt still gets a changelog", %{conn: conn} do
+    server =
+      server_fixture(%{name: "com.acme/docs-only", title: "Acme Docs", repository_url: nil})
+
+    McpRegistry.Documents.discover()
+
+    McpRegistry.Changes.record_document("https://acme.com/llms.txt", "llms_txt", %{
+      added: ["- [Pricing](/pricing.md)"],
+      removed: ["- [Old pricing](/old.md)"]
+    })
+
+    {:ok, _view, html} = live(conn, "/servers/#{server.name}/changelog/llms-txt")
+
+    assert html =~ "Acme Docs llms.txt changelog"
+    assert html =~ "https://acme.com/llms.txt"
+    assert html =~ "[Pricing](/pricing.md)"
+    assert html =~ "<pre"
+
+    xml = conn |> get("/sitemaps/changelogs-1.xml") |> response(200)
+    assert xml =~ "/servers/#{server.name}/changelog/llms-txt</loc>"
+
+    {:ok, _view, html} = live(conn, "/changelog")
+    assert html =~ "Acme Docs"
+    assert html =~ "[Pricing](/pricing.md)"
+  end
+
   test "no history anywhere means no changelog file", %{conn: conn} do
     server_fixture()
 
