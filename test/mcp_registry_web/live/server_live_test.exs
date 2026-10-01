@@ -80,6 +80,20 @@ defmodule McpRegistryWeb.ServerLiveTest do
                ~s(and Cursor Context7 using MCP so I can use them in Claude Code and Grok Bot.")
   end
 
+  test "the sidebar is pinned by its bottom, and keeps the style the client sets", %{conn: conn} do
+    server = server_fixture()
+    {:ok, view, _html} = live(conn, "/servers/#{server.name}")
+
+    aside = view |> element("#listing-aside") |> render()
+
+    # The hook scrolls the sidebar with the page until its last panel shows,
+    # so the sponsors are reached early rather than at the end of the page.
+    assert aside =~ ~s(phx-hook="McpRegistryWeb.ServerLive.Show.StickyAside")
+    # It sets `style` from the browser; a patch must not strip it.
+    assert aside =~ "ignore_attrs"
+    assert aside =~ "sponsors-heading"
+  end
+
   describe "browsing by tag is gone" do
     test "neither the directory nor the home page offers it", %{conn: conn} do
       server_fixture(%{tags: ["weather"]})

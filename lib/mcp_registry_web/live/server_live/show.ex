@@ -521,7 +521,52 @@ defmodule McpRegistryWeb.ServerLive.Show do
           </section>
         </div>
 
-        <aside class="min-w-0 space-y-6 self-start lg:sticky lg:top-32 lg:col-span-4">
+        <%!-- Taller than the screen, so pinning it by its top hid everything below
+              the first screenful -- the sponsors included -- until the main column
+              ran out, often 10,000 words later. .StickyAside pins it by its bottom
+              instead: it scrolls with the page until its last panel is in view,
+              then stays. The style it sets is the client's, so patches keep it. --%>
+        <aside
+          id="listing-aside"
+          phx-hook=".StickyAside"
+          phx-mounted={JS.ignore_attributes(["style"])}
+          class="min-w-0 space-y-6 self-start lg:sticky lg:top-32 lg:col-span-4"
+        >
+          <script :type={Phoenix.LiveView.ColocatedHook} name=".StickyAside">
+            // Sticky with a negative top: the browser scrolls the sidebar with
+            // the page until its bottom meets the bottom of the window, then
+            // holds it there. No scroll listener -- only a recalculation when
+            // the window or the sidebar changes size.
+            const PINNED_TOP = 128 // lg:top-32, clear of the header and rail
+            const GAP = 24 // breathing room under the last panel
+
+            export default {
+              mounted() {
+                this.wide = window.matchMedia("(min-width: 1024px)")
+                this.update = () => {
+                  // Below lg the sidebar stacks under the content; leave it be.
+                  if (!this.wide.matches) return (this.el.style.top = "")
+                  const height = this.el.offsetHeight
+                  const fits = PINNED_TOP + height + GAP <= window.innerHeight
+                  this.el.style.top = fits ? "" : `${window.innerHeight - height - GAP}px`
+                }
+                // Panels change height after load (README, tabs, secrets).
+                this.observer = new ResizeObserver(this.update)
+                this.observer.observe(this.el)
+                window.addEventListener("resize", this.update)
+                this.wide.addEventListener("change", this.update)
+                this.update()
+              },
+              updated() {
+                this.update()
+              },
+              destroyed() {
+                this.observer.disconnect()
+                window.removeEventListener("resize", this.update)
+                this.wide.removeEventListener("change", this.update)
+              }
+            }
+          </script>
           <.panel
             :if={@server.env_vars != []}
             title="Secrets and scopes"
