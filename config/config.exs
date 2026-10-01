@@ -110,6 +110,16 @@ config :mcp_registry, :discovery,
 # slowly on purpose: these are other people's servers, and a first pass over
 # ~21,000 endpoints takes about a day and a half at this rate. Enabled only in
 # prod, via runtime.exs.
+config :mcp_registry, :documents,
+  enabled: false,
+  batch_size: 100,
+  concurrency: 4,
+  recheck_days: 7,
+  interval_ms: :timer.minutes(5),
+  # After the probe scheduler's first tick, so a deploy does not start both at once.
+  initial_delay_ms: :timer.minutes(6),
+  req_options: []
+
 config :mcp_registry, :probe,
   enabled: false,
   batch_size: 50,

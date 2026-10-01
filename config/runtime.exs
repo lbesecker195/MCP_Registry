@@ -91,6 +91,12 @@ config :mcp_registry, :probe,
   batch_size: String.to_integer(System.get_env("PROBE_BATCH_SIZE", "50")),
   concurrency: String.to_integer(System.get_env("PROBE_CONCURRENCY", "4"))
 
+# On in production unless DOCUMENTS_ENABLED says otherwise. Never under test,
+# where it would fetch real URLs mid-run.
+config :mcp_registry, :documents,
+  enabled:
+    config_env() == :prod and System.get_env("DOCUMENTS_ENABLED", "true") not in ~w(false 0)
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :mcp_registry, McpRegistryWeb.Endpoint,

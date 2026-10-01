@@ -13,7 +13,7 @@ defmodule McpRegistry.Probe.Scheduler do
   is no deadline here.
 
   Requests carry a user agent naming the registry and linking to it, and a
-  probed endpoint is not asked again for two weeks, so a steady state is a
+  probed endpoint is not asked again for a week, so a steady state is a
   trickle rather than a sweep.
 
   Set `PROBE_ENABLED=false` to stop it entirely.

@@ -92,6 +92,28 @@ defmodule McpRegistry.Changes do
 
   def record_sync(_before, _changeset), do: []
 
+  @doc """
+  Records a change to a fetched document (llms.txt, AGENTS.md), against its
+  URL rather than any one listing -- see the moduledoc on why.
+  """
+  def record_document(url, kind, attrs) when kind in ["llms_txt", "agents_md"] do
+    insert_all([
+      Map.merge(
+        %{
+          server_id: nil,
+          document_url: url,
+          kind: kind,
+          added: [],
+          removed: [],
+          fields: %{},
+          source: "fetch",
+          inserted_at: DateTime.utc_now()
+        },
+        attrs
+      )
+    ])
+  end
+
   defp tools_change(%Server{tools_source: "probed", tools: old}, [_ | _] = new),
     do: list_entry(%{tools: old}, :tools, new)
 
@@ -172,21 +194,47 @@ defmodule McpRegistry.Changes do
     |> Map.new()
   end
 
-  @doc "The most recent changes across the whole registry, with their listing."
+  @doc """
+  The most recent changes across the whole registry, each with a listing to
+  show it under. A document change is shown under one listing that points at
+  the document, since it has none of its own.
+  """
   def recent(limit \\ 100) do
-    Change
-    |> where([c], not is_nil(c.server_id))
-    |> order_by([c], desc: c.inserted_at, desc: c.id)
-    |> limit(^limit)
-    |> preload(server: ^from(s in Server, select: struct(s, [:id, :name, :title])))
-    |> Repo.all()
+    changes =
+      Change
+      |> order_by([c], desc: c.inserted_at, desc: c.id)
+      |> limit(^limit)
+      |> Repo.all()
+
+    urls = for %{document_url: url} <- changes, url, uniq: true, do: url
+
+    via =
+      from(sd in "server_documents",
+        where: sd.url in ^urls,
+        group_by: sd.url,
+        select: {sd.url, min(sd.server_id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    ids = Enum.uniq(for(%{server_id: id} <- changes, id, do: id) ++ Map.values(via))
+
+    servers =
+      from(s in Server, where: s.id in ^ids, select: struct(s, [:id, :name, :title, :status]))
+      |> Repo.all()
+      |> Map.new(&{&1.id, &1})
+
+    for change <- changes,
+        server = servers[change.server_id || via[change.document_url]],
+        server && server.status == "active",
+        do: %{change | server: server}
   end
 
   @doc "How many active listings have at least one recorded change."
   def count_servers_with_changes do
-    Change
-    |> join(:inner, [c], s in Server, on: s.id == c.server_id and s.status == "active")
-    |> select([c], count(c.server_id, :distinct))
+    by_listing()
+    |> join(:inner, [u], s in Server, on: s.id == u.server_id and s.status == "active")
+    |> select([u], count(u.server_id, :distinct))
     |> Repo.one()
   end
 
@@ -195,19 +243,38 @@ defmodule McpRegistry.Changes do
   shape the sitemap needs, without loading any listing in full.
   """
   def servers_with_changes(offset, limit) do
-    Change
-    |> join(:inner, [c], s in Server, on: s.id == c.server_id and s.status == "active")
-    |> group_by([c, s], [s.id, s.name])
-    |> order_by([c, s], asc: s.id)
+    by_listing()
+    |> join(:inner, [u], s in Server, on: s.id == u.server_id and s.status == "active")
+    |> group_by([u, s], [s.id, s.name])
+    |> order_by([u, s], asc: s.id)
     |> offset(^offset)
     |> limit(^limit)
-    |> select([c, s], {s.name, fragment("array_agg(DISTINCT ?)", c.kind), max(c.inserted_at)})
+    |> select([u, s], {s.name, fragment("array_agg(DISTINCT ?)", u.kind), max(u.at)})
     |> Repo.all()
   end
 
-  # Extended by the document fetcher: a listing's changelog also includes the
-  # documents it points at, which are recorded against their URL.
-  defp subject_query(%Server{id: id}), do: where(Change, [c], c.server_id == ^id)
+  # Every change attributed to a listing: its own, plus those of the documents
+  # it points at, which are recorded against their URL.
+  defp by_listing do
+    own =
+      from c in Change,
+        where: not is_nil(c.server_id),
+        select: %{server_id: c.server_id, kind: c.kind, at: c.inserted_at}
+
+    via_documents =
+      from c in Change,
+        join: sd in "server_documents",
+        on: sd.url == c.document_url,
+        select: %{server_id: sd.server_id, kind: c.kind, at: c.inserted_at}
+
+    subquery(union_all(own, ^via_documents))
+  end
+
+  # A listing's changelog includes the documents it points at.
+  defp subject_query(%Server{id: id}) do
+    urls = from(sd in "server_documents", where: sd.server_id == ^id, select: sd.url)
+    where(Change, [c], c.server_id == ^id or c.document_url in subquery(urls))
+  end
 
   # --- Naming ----------------------------------------------------------------
 
