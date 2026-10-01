@@ -124,7 +124,11 @@ jobs:
       id-token: write
     env:
       MCP_PUBLISHER_VERSION: "1.8.1"
-      RETIRED_SERVER_NAMES: "io.github.lbesecker195/mcp-registry-search"
+      # Space-separated. Each is marked deleted before the current name is
+      # published, freeing the endpoint URL it claimed.
+      RETIRED_SERVER_NAMES: >-
+        io.github.lbesecker195/mcp-registry-search
+        io.github.lbesecker195/mcp-registry-search-find-mcp-servers-discover-install-mcp-tools-directory-catalog-marketplace
     steps:
       - uses: actions/checkout@v5
 
@@ -153,8 +157,17 @@ jobs:
           esac
           retire=""
           for old in $RETIRED_SERVER_NAMES; do
-            state=$(curl -s "$api/$(enc "$old")/versions/latest?include_deleted=true" \
-              | jq -r '._meta["io.modelcontextprotocol.registry/official"].status // "absent"')
+            # Retry: a misread here matters. Reading "absent" from an error page
+            # skips the retire, and the publish then fails on the endpoint URL
+            # the old name still holds.
+            for attempt in 1 2 3 4; do
+              code=$(curl -s -o state.json -w '%{http_code}' "$api/$(enc "$old")/versions/latest?include_deleted=true")
+              case "$code" in
+                200) state=$(jq -r '._meta["io.modelcontextprotocol.registry/official"].status // "unknown"' state.json); break ;;
+                404) state=absent; break ;;
+                *)   state="unknown (HTTP $code)"; sleep $((attempt * 5)) ;;
+              esac
+            done
             echo "$old -> $state"
             if [ "$state" != deleted ] && [ "$state" != absent ]; then retire="$retire $old"; fi
           done
