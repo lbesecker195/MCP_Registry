@@ -66,7 +66,7 @@ and their pages link back to the official entry.
 ## Listed in the official MCP Registry
 
 The registry's own MCP endpoint is published to the official MCP Registry as
-`io.github.lbesecker195/mcp-registry-search-find-mcp-servers-discover-install-mcp-tools-directory-catalog-marketplace`, from `server.json` in this folder.
+`io.github.lbesecker195/mcp-registry-search-directory`, from `server.json` in this folder.
 The `publish-mcp-registry` job in the workflow publishes it after each
 successful deploy, authenticating with GitHub OIDC, so there is no secret to
 manage. It skips versions already published; bump `version` in `server.json`
