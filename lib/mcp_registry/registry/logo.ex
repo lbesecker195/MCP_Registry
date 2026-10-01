@@ -114,9 +114,13 @@ defmodule McpRegistry.Registry.Logo do
 
   defp valid_login(_), do: nil
 
-  # avatars.githubusercontent.com answers a login directly with the image, no
-  # redirect -- github.com/<login>.png costs an extra round trip per logo.
-  defp avatar(login), do: "https://avatars.githubusercontent.com/#{login}?size=#{@avatar_px}"
+  # github.com/<login>.png, not the avatars.githubusercontent.com/<login>
+  # shortcut. The shortcut saves a redirect but returns GitHub's grey ghost
+  # placeholder for some organisations -- Microsoft and GitHub both got it --
+  # so on the live grid unrelated listings shared one blank octocat. The
+  # documented form redirects to the real image, and 404s for a login that
+  # does not exist, which lets the monogram show through.
+  defp avatar(login), do: "https://github.com/#{login}.png?size=#{@avatar_px}"
 
   # Lower sorts first. Dark-theme icons last; then SVG; then the smallest
   # raster that is big enough; then any raster; unknown sizes in the middle.
