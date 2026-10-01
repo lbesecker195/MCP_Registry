@@ -128,7 +128,7 @@ defmodule McpRegistryWeb.ServerLive.Tools do
   @impl true
   def render(%{live_action: :index} = assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:servers} wide={true}>
+    <Layouts.app flash={@flash} active={:servers} wide={true} sponsors={true}>
       <:rail><.crumbs server={@server} namespace={@namespace} short_name={@short_name} /></:rail>
 
       <header class="rise space-y-3 border-b border-rule pb-6">
@@ -164,7 +164,7 @@ defmodule McpRegistryWeb.ServerLive.Tools do
 
   def render(%{live_action: :show} = assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:servers} wide={true}>
+    <Layouts.app flash={@flash} active={:servers} wide={true} sponsors={true}>
       <:rail>
         <.crumbs server={@server} namespace={@namespace} short_name={@short_name} tool={@tool} />
       </:rail>
@@ -225,7 +225,7 @@ defmodule McpRegistryWeb.ServerLive.Tools do
 
   def render(%{live_action: :client} = assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:servers} wide={true}>
+    <Layouts.app flash={@flash} active={:servers} wide={true} sponsors={true}>
       <:rail>
         <.crumbs
           server={@server}

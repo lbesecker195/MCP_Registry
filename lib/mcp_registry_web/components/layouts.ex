@@ -38,6 +38,13 @@ defmodule McpRegistryWeb.Layouts do
     default: false,
     doc: "drop the reading-width cap, for the landing page's full-bleed sections"
 
+  attr :sponsors, :boolean,
+    default: false,
+    doc: """
+    put the content in a main column with the sponsor sidebar beside it. A page
+    with a sidebar of its own (a listing) keeps it, and uses the same hook.
+    """
+
   slot :rail,
     doc: """
     A full-width bar pinned under the site header — breadcrumbs on the left,
@@ -96,8 +103,18 @@ defmodule McpRegistryWeb.Layouts do
     </div>
 
     <main id="main" class={["px-4 pb-10 sm:px-6 lg:px-8", if(@rail != [], do: "pt-6", else: "pt-10")]}>
-      <div class={["mx-auto space-y-6", if(@wide, do: "max-w-6xl", else: "max-w-5xl")]}>
-        {render_slot(@inner_block)}
+      <div class={[
+        "mx-auto space-y-6",
+        if(@wide or @sponsors, do: "max-w-6xl", else: "max-w-5xl")
+      ]}>
+        <%= if @sponsors do %>
+          <div class="grid gap-8 lg:grid-cols-12">
+            <div class="min-w-0 space-y-6 lg:col-span-8">{render_slot(@inner_block)}</div>
+            <.sponsor_sidebar class="lg:col-span-4" />
+          </div>
+        <% else %>
+          {render_slot(@inner_block)}
+        <% end %>
       </div>
     </main>
 
@@ -227,7 +244,80 @@ defmodule McpRegistryWeb.Layouts do
   end
 
   @doc """
-  The sponsored block: four square slots, two up.
+  A right-hand sidebar that scrolls with the page and then holds, holding the
+  sponsored block below whatever the caller puts in it.
+
+  The sidebar is taller than the window -- five 250px tiles alone are -- so
+  pinning it by its top, the usual sticky sidebar, would show only its first
+  screenful until the main column ran out, sometimes 10,000 words later. The
+  `.StickySidebar` hook pins it by its bottom instead: it scrolls with the page
+  until its last item is in view, then stays.
+
+  ## Examples
+
+      <Layouts.sponsor_sidebar class="lg:col-span-4" />
+
+  A page with its own sidebar can use the behaviour without the component:
+  `phx-hook="McpRegistryWeb.Layouts.StickySidebar"`, plus
+  `phx-mounted={JS.ignore_attributes(["style"])}`.
+  """
+  attr :id, :string, default: "sponsor-sidebar"
+  attr :class, :any, default: nil
+  slot :inner_block
+
+  def sponsor_sidebar(assigns) do
+    ~H"""
+    <aside
+      id={@id}
+      phx-hook=".StickySidebar"
+      phx-mounted={JS.ignore_attributes(["style"])}
+      class={["min-w-0 space-y-6 self-start lg:sticky lg:top-32", @class]}
+    >
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".StickySidebar">
+        // Sticky with a negative top: the browser scrolls the sidebar with the
+        // page until its bottom meets the bottom of the window, then holds it
+        // there. No scroll listener -- only a recalculation when the window or
+        // the sidebar changes size. The style it sets belongs to the browser;
+        // phx-mounted tells LiveView not to strip it on the next patch.
+        const PINNED_TOP = 128 // lg:top-32, clear of the header and rail
+        const GAP = 24 // breathing room under the last item
+
+        export default {
+          mounted() {
+            this.wide = window.matchMedia("(min-width: 1024px)")
+            this.update = () => {
+              // Below lg the sidebar stacks under the content; leave it be.
+              if (!this.wide.matches) return (this.el.style.top = "")
+              const height = this.el.offsetHeight
+              const fits = PINNED_TOP + height + GAP <= window.innerHeight
+              this.el.style.top = fits ? "" : `${window.innerHeight - height - GAP}px`
+            }
+            // Contents change height after load: images, tabs, a README.
+            this.observer = new ResizeObserver(this.update)
+            this.observer.observe(this.el)
+            window.addEventListener("resize", this.update)
+            this.wide.addEventListener("change", this.update)
+            this.update()
+          },
+          updated() {
+            this.update()
+          },
+          destroyed() {
+            this.observer.disconnect()
+            window.removeEventListener("resize", this.update)
+            this.wide.removeEventListener("change", this.update)
+          }
+        }
+      </script>
+      {render_slot(@inner_block)}
+      <.sponsors />
+    </aside>
+    """
+  end
+
+  @doc """
+  The sponsored block: five square slots, one per row -- the book first and
+  last, and the three slots for sale between.
 
   Lives here rather than in `CoreComponents` because it is site chrome: it
   belongs to the page frame, not to the listing being described, and any page
@@ -256,15 +346,22 @@ defmodule McpRegistryWeb.Layouts do
   @enquiry_subject "Interested Sponsor for MCP Harbor"
   @enquiry_body "I'm interested in bidding $____ for a Sponsor position on MCP Harbor."
 
+  @book_slot %{
+    file: "Book.png",
+    alt: "MCP Server Optimization — the book behind this registry",
+    kind: :book
+  }
+
+  # The book opens and closes the block. The sidebar is taller than the window
+  # and settles with its bottom in view, so the last tile is the one a reader
+  # keeps seeing for the rest of a long page -- and the first is the one they
+  # see before they scroll at all.
   @sponsor_slots [
-    %{
-      file: "Book.png",
-      alt: "MCP Server Optimization — the book behind this registry",
-      kind: :book
-    },
+    @book_slot,
     %{file: "sponsor-1.png", alt: "Sponsor slot available — email to enquire", kind: :enquiry},
     %{file: "sponsor-2.png", alt: "Sponsor slot available — email to enquire", kind: :enquiry},
-    %{file: "sponsor-3.png", alt: "Sponsor slot available — email to enquire", kind: :enquiry}
+    %{file: "sponsor-3.png", alt: "Sponsor slot available — email to enquire", kind: :enquiry},
+    @book_slot
   ]
 
   def sponsors(assigns) do

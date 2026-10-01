@@ -103,7 +103,7 @@ defmodule McpRegistryWeb.ServerLive.Agent do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active={:servers} wide={true}>
+    <Layouts.app flash={@flash} active={:servers} wide={true} sponsors={true}>
       <:rail>
         <nav aria-label="Breadcrumb" class="min-w-0 font-mono text-xs">
           <ol class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-dim">
