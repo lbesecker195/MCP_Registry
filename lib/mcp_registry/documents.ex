@@ -414,7 +414,17 @@ defmodule McpRegistry.Documents do
       |> String.downcase()
 
     String.valid?(body) and not String.contains?(type, "html") and
-      not String.starts_with?(head, ["<!doctype", "<html", "<?xml", "<head"])
+      not String.starts_with?(head, ["<!doctype", "<html", "<?xml", "<head"]) and
+      not json?(type, body)
+  end
+
+  # The other catch-all: an API host answering every path with a JSON status
+  # document. Neither llms.txt nor AGENTS.md is JSON, and one that carries a
+  # timestamp would otherwise "change" on every check.
+  defp json?(type, body) do
+    String.contains?(type, "json") or
+      (String.starts_with?(String.trim_leading(body), ["{", "["]) and
+         match?({:ok, _}, Jason.decode(body)))
   end
 
   defp header(%Req.Response{} = resp, name) do

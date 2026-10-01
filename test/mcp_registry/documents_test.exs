@@ -142,6 +142,13 @@ defmodule McpRegistry.DocumentsTest do
       assert [%{fields: %{"file" => ["absent", "published"]}}] = changes()
     end
 
+    test "a JSON status page served at /llms.txt is not an llms.txt" do
+      # Seen in production: an API host answering every path with its health
+      # document, as text/plain.
+      serve(&text(&1, 200, ~s({"status":"ok","server":"mock-mcp-server"})))
+      assert Documents.check(doc()) == :missing
+    end
+
     test "an outage is not a removal" do
       d = doc()
       serve(&text(&1, 200, "# Acme\n"))
