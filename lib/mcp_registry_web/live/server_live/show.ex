@@ -632,15 +632,15 @@ defmodule McpRegistryWeb.ServerLive.Show do
 
           <Layouts.sponsors />
 
-          <.panel :if={@server.tags != []} title="Tags" icon="hero-funnel">
+          <%!-- Plain text, not links: browsing by tag was removed while too few
+                listings carry tags for a tag page to be worth landing on. --%>
+          <.panel :if={@server.tags != []} title="Tags" icon="hero-tag">
             <ul class="flex flex-wrap gap-1.5">
-              <li :for={tag <- @server.tags}>
-                <.link
-                  navigate={~p"/servers?tag=#{tag}"}
-                  class="block rounded-full border border-rule px-2.5 py-1 font-mono text-[11px] text-dim transition-colors hover:border-brand/40 hover:bg-surface hover:text-ink"
-                >
-                  #{tag}
-                </.link>
+              <li
+                :for={tag <- @server.tags}
+                class="rounded-full border border-rule px-2.5 py-1 font-mono text-[11px] text-dim"
+              >
+                #{tag}
               </li>
             </ul>
           </.panel>

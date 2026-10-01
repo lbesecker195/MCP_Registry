@@ -122,7 +122,6 @@ defmodule McpRegistryWeb.Layouts do
             <:link_item navigate={~p"/servers?transport=streamable-http"}>
               Remote servers
             </:link_item>
-            <:link_item navigate={~p"/servers?tag=developer-tools"}>Developer tools</:link_item>
             <:link_item navigate={~p"/submit"}>Submit a server</:link_item>
           </.footer_column>
 

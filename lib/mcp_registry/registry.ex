@@ -116,8 +116,7 @@ defmodule McpRegistry.Registry do
   @doc """
   Drops the cached catalogue figures.
 
-  Called after anything that changes what `stats/0` or `top_tags/1` would
-  answer, so the day-long TTL is a ceiling rather than a staleness guarantee.
+  Called after anything that changes what `stats/0` would answer, so the day-long TTL is a ceiling rather than a staleness guarantee.
   The official-registry sync calls this once at the end of a run rather than
   per row.
   """
@@ -300,31 +299,6 @@ defmodule McpRegistry.Registry do
       |> limit(^n)
       |> select([s], struct(s, [:name, :title, :description, :inserted_at, :updated_at]))
       |> Repo.all()
-    end)
-  end
-
-  @doc """
-  The most-used tags among active servers, as `{tag, count}` pairs.
-
-  Counted in Postgres. The previous version selected `unnest(tags)` and tallied
-  in Elixir, which moved one row per tag per listing -- roughly ninety thousand
-  of them -- across the wire on every catalogue and landing page view.
-  """
-  def top_tags(n \\ 12) do
-    Cache.fetch({:top_tags, n}, fn ->
-      %{rows: rows} =
-        Repo.query!(
-          """
-          SELECT tag, count(*) AS uses
-          FROM (SELECT unnest(tags) AS tag FROM servers WHERE status = 'active') AS tags
-          GROUP BY tag
-          ORDER BY uses DESC, tag ASC
-          LIMIT $1
-          """,
-          [n]
-        )
-
-      Enum.map(rows, fn [tag, uses] -> {tag, uses} end)
     end)
   end
 

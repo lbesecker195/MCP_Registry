@@ -14,7 +14,7 @@ defmodule McpRegistryWeb.ServerLive.Home do
 
   # Query params that used to belong to this route. Anything here means the
   # visitor wanted the catalogue, not the landing page.
-  @catalogue_params ~w(q tag transport page)
+  @catalogue_params ~w(q transport page)
 
   @impl true
   def mount(_params, _session, socket) do
@@ -30,7 +30,6 @@ defmodule McpRegistryWeb.ServerLive.Home do
      |> assign(:canonical_url, McpRegistryWeb.Endpoint.url() <> "/")
      |> assign(:mcp_url, McpRegistryWeb.Endpoint.url() <> "/mcp")
      |> assign(:stats, stats)
-     |> assign(:tags, Registry.top_tags(12))
      |> assign(:featured, Registry.list_servers(limit: 6))
      |> assign(:subscribed?, false)
      |> assign(:form, to_form(Subscribers.change_subscriber()))}
@@ -93,7 +92,7 @@ defmodule McpRegistryWeb.ServerLive.Home do
         </p>
 
         <p class="rise mt-4 max-w-2xl text-sm text-pretty text-dim" style="--d: 180ms">
-          Search every listing by name, tag, transport or the exact tool you need. The official
+          Search every listing by name, transport or the exact tool you need. The official
           MCP Registry is mirrored in and kept in sync; anything submitted here lands alongside it.
         </p>
 
@@ -257,7 +256,7 @@ defmodule McpRegistryWeb.ServerLive.Home do
 
         <ol class="grid gap-px overflow-hidden rounded-box border border-rule bg-rule sm:grid-cols-3">
           <.step index="01" label="find" icon="hero-magnifying-glass">
-            Filter by tag, transport or tool name. Every listing shows what it exposes and what it
+            Search by name, transport or tool name. Every listing shows what it exposes and what it
             needs before you install anything.
           </.step>
           <.step index="02" label="install" icon="hero-command-line">
@@ -269,26 +268,6 @@ defmodule McpRegistryWeb.ServerLive.Home do
             agent query this registry through its MCP endpoint.
           </.step>
         </ol>
-      </section>
-
-      <section :if={@tags != []} aria-labelledby="tags-heading" class="space-y-4 pt-8">
-        <div class="space-y-1.5">
-          <p class="font-mono text-[11px] tracking-wide text-dim uppercase">by category</p>
-          <h2 id="tags-heading" class="text-xl font-semibold tracking-tight text-balance sm:text-2xl">
-            Browse by tag
-          </h2>
-        </div>
-
-        <ul class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-          <li :for={{tag, count} <- @tags} class="shrink-0">
-            <.link
-              navigate={~p"/servers?tag=#{tag}"}
-              class="flex items-center gap-2 rounded-full border border-rule bg-surface/50 px-3 py-1.5 font-mono text-xs text-dim transition-colors hover:border-brand/40 hover:bg-surface hover:text-ink"
-            >
-              {tag} <span class="tabular-nums opacity-60">{count}</span>
-            </.link>
-          </li>
-        </ul>
       </section>
 
       <section aria-labelledby="subscribe-heading" class="pt-8">
@@ -404,7 +383,7 @@ defmodule McpRegistryWeb.ServerLive.Home do
   end
 
   defp meta_description(stats) do
-    "Search #{format_number(stats.servers)} Model Context Protocol servers by tag, transport or " <>
+    "Search #{format_number(stats.servers)} Model Context Protocol servers by name, transport or " <>
       "tool name. Copy the install command, or connect your agent to the registry's own MCP endpoint."
   end
 

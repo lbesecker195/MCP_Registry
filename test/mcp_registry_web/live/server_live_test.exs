@@ -80,6 +80,51 @@ defmodule McpRegistryWeb.ServerLiveTest do
                ~s(and Cursor Context7 using MCP so I can use them in Claude Code and Grok Bot.")
   end
 
+  describe "browsing by tag is gone" do
+    test "neither the directory nor the home page offers it", %{conn: conn} do
+      server_fixture(%{tags: ["weather"]})
+
+      {:ok, _view, directory} = live(conn, "/servers")
+      refute directory =~ "Filter by tag"
+      refute directory =~ "?tag="
+
+      {:ok, _view, home} = live(conn, "/")
+      refute home =~ "Browse by tag"
+      refute home =~ "?tag="
+    end
+
+    test "a listing still shows its tags, but as text rather than links", %{conn: conn} do
+      server = server_fixture(%{tags: ["weather", "forecasts"]})
+      {:ok, _view, html} = live(conn, "/servers/#{server.name}")
+
+      assert html =~ "#weather"
+      refute html =~ "?tag="
+    end
+
+    test "old tag URLs 301 to the same page without the tag", %{conn: conn} do
+      assert conn |> get("/servers?tag=weather") |> redirected_to(301) == "/servers"
+      assert conn |> get("/?tag=weather") |> redirected_to(301) == "/"
+
+      # Anything else in the query survives.
+      assert conn |> get("/servers?tag=weather&q=radar&transport=stdio") |> redirected_to(301) ==
+               "/servers?q=radar&transport=stdio"
+    end
+
+    test "the JSON API keeps its tag filter, which clients may depend on", %{conn: conn} do
+      tagged = server_fixture(%{tags: ["weather"]})
+      _other = server_fixture(%{tags: ["notes"]})
+
+      names =
+        conn
+        |> get("/api/v0/servers?tag=weather")
+        |> json_response(200)
+        |> Map.fetch!("servers")
+        |> Enum.map(& &1["server"]["name"])
+
+      assert names == [tagged.name]
+    end
+  end
+
   describe "logos" do
     test "a verified GitHub namespace shows its owner's avatar", %{conn: conn} do
       server =

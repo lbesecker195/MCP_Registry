@@ -22,10 +22,9 @@ defmodule McpRegistryWeb.ServerLive.Index do
      |> assign(
        :meta_description,
        "Search the MCP Registry: an open directory of Model Context Protocol servers. " <>
-         "Filter by tag, tool and transport, then connect one to Claude, Cursor or any MCP client."
+         "Search by name or tool, filter by transport, then connect one to Claude, Cursor or any MCP client."
      )
      |> assign(:canonical_url, McpRegistryWeb.Endpoint.url() <> "/servers")
-     |> assign(:tags, Registry.top_tags(14))
      |> assign(:stats, Registry.stats())
      |> assign(:transports, Server.transports())
      |> assign(:mcp_url, McpRegistryWeb.Endpoint.url() <> "/mcp")}
@@ -35,8 +34,7 @@ defmodule McpRegistryWeb.ServerLive.Index do
   def handle_params(params, _uri, socket) do
     q = String.trim(params["q"] || "")
     transport = blank_to_nil(params["transport"])
-    tag = blank_to_nil(params["tag"])
-    filters = [q: q, transport: transport, tag: tag]
+    filters = [q: q, transport: transport]
 
     total = Registry.count_servers(filters)
     last_page = max(div(total + @per_page - 1, @per_page), 1)
@@ -53,7 +51,6 @@ defmodule McpRegistryWeb.ServerLive.Index do
      assign(socket,
        q: q,
        transport: transport,
-       tag: tag,
        servers: servers,
        page: page,
        last_page: last_page,
@@ -66,7 +63,7 @@ defmodule McpRegistryWeb.ServerLive.Index do
   @impl true
   def handle_event("search", %{"q" => q} = params, socket) do
     transport = Map.get(params, "transport", socket.assigns.transport)
-    {:noreply, push_patch(socket, to: index_path(q, transport, socket.assigns.tag))}
+    {:noreply, push_patch(socket, to: index_path(q, transport))}
   end
 
   @impl true
@@ -83,7 +80,7 @@ defmodule McpRegistryWeb.ServerLive.Index do
             <p class="flex items-baseline gap-2 font-mono">
               <span class="text-2xl font-semibold tracking-tight">{format_number(@total)}</span>
               <span class="text-xs text-dim">
-                {if any_filter?(@q, @transport, @tag), do: "matching", else: "servers"}
+                {if any_filter?(@q, @transport), do: "matching", else: "servers"}
               </span>
             </p>
           </:actions>
@@ -117,7 +114,7 @@ defmodule McpRegistryWeb.ServerLive.Index do
             />
             <.link
               :if={@q != ""}
-              patch={index_path("", @transport, @tag)}
+              patch={index_path("", @transport)}
               aria-label="Clear the search"
               class="flex size-6 shrink-0 items-center justify-center rounded-full text-dim transition-colors hover:bg-sunken hover:text-ink"
             >
@@ -141,45 +138,18 @@ defmodule McpRegistryWeb.ServerLive.Index do
           </select>
         </form>
 
-        <nav
-          class="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0"
-          aria-label="Filter by tag"
-        >
-          <.link
-            patch={index_path(@q, @transport, nil)}
-            aria-current={is_nil(@tag) && "true"}
-            class={[chip_classes(), chip_tone(is_nil(@tag))]}
-          >
-            all
-          </.link>
-          <.link
-            :for={{tag, count} <- @tags}
-            patch={index_path(@q, @transport, tag)}
-            aria-current={@tag == tag && "true"}
-            class={[chip_classes(), chip_tone(@tag == tag)]}
-          >
-            {tag} <span class="opacity-60">{count}</span>
-          </.link>
-        </nav>
-
-        <div :if={any_filter?(@q, @transport, @tag)} class="flex flex-wrap items-center gap-2">
+        <div :if={any_filter?(@q, @transport)} class="flex flex-wrap items-center gap-2">
           <span class="font-mono text-[11px] tracking-wide text-dim uppercase">filtered by</span>
           <.filter_pill
             :if={@q != ""}
             label={@q}
-            remove={index_path("", @transport, @tag)}
+            remove={index_path("", @transport)}
             remove_label={"Clear the search term #{@q}"}
-          />
-          <.filter_pill
-            :if={@tag}
-            label={"##{@tag}"}
-            remove={index_path(@q, @transport, nil)}
-            remove_label={"Remove the #{@tag} tag filter"}
           />
           <.filter_pill
             :if={@transport}
             label={@transport}
-            remove={index_path(@q, nil, @tag)}
+            remove={index_path(@q, nil)}
             remove_label={"Remove the #{@transport} transport filter"}
           />
           <.link
@@ -264,7 +234,7 @@ defmodule McpRegistryWeb.ServerLive.Index do
         <.icon name="hero-magnifying-glass" class="mx-auto size-6 text-dim" />
 
         <h2 class="mt-3 text-base font-medium text-balance">
-          No servers {filter_phrase(@q, @transport, @tag) || "are listed yet"}
+          No servers {filter_phrase(@q, @transport) || "are listed yet"}
         </h2>
 
         <p class="mx-auto mt-1.5 max-w-md text-sm text-pretty text-dim">
@@ -273,10 +243,10 @@ defmodule McpRegistryWeb.ServerLive.Index do
         </p>
 
         <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
-          <.button :if={@q != ""} variant="soft" patch={index_path("", @transport, @tag)}>
+          <.button :if={@q != ""} variant="soft" patch={index_path("", @transport)}>
             <.icon name="hero-x-mark" class="size-4" /> Clear the search
           </.button>
-          <.button :if={any_filter?(@q, @transport, @tag)} variant="soft" patch={~p"/servers"}>
+          <.button :if={any_filter?(@q, @transport)} variant="soft" patch={~p"/servers"}>
             <.icon name="hero-squares-2x2" class="size-4" />
             Browse all {format_number(@stats.servers)} servers
           </.button>
@@ -294,7 +264,7 @@ defmodule McpRegistryWeb.ServerLive.Index do
       >
         <.link
           :if={@page > 1}
-          patch={index_path(@q, @transport, @tag, @page - 1)}
+          patch={index_path(@q, @transport, @page - 1)}
           rel="prev"
           class={page_button_classes()}
         >
@@ -314,7 +284,7 @@ defmodule McpRegistryWeb.ServerLive.Index do
 
         <.link
           :if={@page < @last_page}
-          patch={index_path(@q, @transport, @tag, @page + 1)}
+          patch={index_path(@q, @transport, @page + 1)}
           rel="next"
           class={page_button_classes()}
         >
@@ -369,34 +339,25 @@ defmodule McpRegistryWeb.ServerLive.Index do
     """
   end
 
-  defp chip_classes,
-    do: "shrink-0 rounded-field border px-2.5 py-1 font-mono text-xs transition-colors"
-
-  defp chip_tone(true), do: "border-brand bg-brand text-brand-ink"
-
-  defp chip_tone(false),
-    do: "border-rule text-dim hover:border-rule-strong hover:bg-surface hover:text-ink"
-
   defp page_button_classes,
     do:
       "inline-flex min-h-10 items-center gap-1.5 rounded-field border border-rule bg-surface px-3.5 font-mono text-xs transition-colors hover:border-rule-strong hover:bg-sunken"
 
-  defp index_path(q, transport, tag, page \\ 1) do
+  defp index_path(q, transport, page \\ 1) do
     params =
-      [q: q, transport: transport, tag: tag, page: if(page > 1, do: page)]
+      [q: q, transport: transport, page: if(page > 1, do: page)]
       |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
 
     ~p"/servers?#{params}"
   end
 
-  defp any_filter?(q, transport, tag), do: q != "" or transport != nil or tag != nil
+  defp any_filter?(q, transport), do: q != "" or transport != nil
 
   # Reads back the active filters as a sentence fragment, so an empty result
   # says what was actually asked for rather than "no matches".
-  defp filter_phrase(q, transport, tag) do
+  defp filter_phrase(q, transport) do
     [
       q != "" && ~s(matching "#{q}"),
-      tag && "tagged ##{tag}",
       transport && "on #{transport}"
     ]
     |> Enum.filter(& &1)
