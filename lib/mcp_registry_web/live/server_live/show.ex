@@ -45,6 +45,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
         active_tab: "tools",
         tool_query: "",
         tools: decorate_tools(server.tools),
+        change_count: McpRegistry.Changes.kinds_for_server(server) |> Map.values() |> Enum.sum(),
         secrets: Map.new(server.env_vars, &{&1, ""}),
         website_title: nil,
         website_description: nil,
@@ -166,6 +167,13 @@ defmodule McpRegistryWeb.ServerLive.Show do
                 <span class="rounded-field border border-rule bg-surface px-2 py-0.5 font-mono text-xs font-normal text-dim">
                   v{@server.version}
                 </span>
+                <.link
+                  :if={@change_count > 0}
+                  navigate={changelog_path(@server)}
+                  class="font-mono text-xs text-brand underline decoration-brand/30 underline-offset-4 transition-colors hover:decoration-brand"
+                >
+                  changelog · {@change_count}
+                </.link>
               </div>
               <p class="font-mono text-xs break-all text-dim">{@server.name}</p>
             </div>

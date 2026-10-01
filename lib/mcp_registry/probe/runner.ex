@@ -21,12 +21,12 @@ defmodule McpRegistry.Probe.Runner do
 
   import Ecto.Query
 
-  alias McpRegistry.{Probe, Repo}
+  alias McpRegistry.{Changes, Probe, Repo}
   alias McpRegistry.Registry.Server
 
   @default_batch 100
   @default_concurrency 6
-  @default_recheck_days 14
+  @default_recheck_days 7
 
   @doc """
   Probes one batch and returns a tally.
@@ -108,7 +108,13 @@ defmodule McpRegistry.Probe.Runner do
         # exactly the count this is being collected to settle.
         changes = Map.merge(tools, %{prompts: found.prompts, resources: found.resources})
 
-        record(server, :ok, changes)
+        # The changelog is written only once the new values are, so it can
+        # never describe a state the listing did not reach. `server` is still
+        # the row as it was before this probe.
+        with {:ok, _updated} <- record(server, :ok, changes) do
+          Changes.record_probe(server, found)
+        end
+
         :ok
 
       {:error, reason} ->
@@ -129,11 +135,11 @@ defmodule McpRegistry.Probe.Runner do
     |> Repo.update()
     |> case do
       {:ok, updated} ->
-        updated
+        {:ok, updated}
 
       {:error, changeset} ->
         Logger.warning("Probe could not record #{server.name}: #{inspect(changeset.errors)}")
-        server
+        {:error, server}
     end
   rescue
     # `Repo.update/1` returns a changeset for a validation failure but raises
@@ -143,6 +149,6 @@ defmodule McpRegistry.Probe.Runner do
     # answers is not under our control, so this must not be fatal to the rest.
     error ->
       Logger.warning("Probe could not record #{server.name}: #{Exception.message(error)}")
-      server
+      {:error, server}
   end
 end

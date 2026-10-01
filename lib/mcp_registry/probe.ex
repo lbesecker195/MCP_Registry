@@ -153,6 +153,9 @@ defmodule McpRegistry.Probe do
   @max_items 500
   @max_length 2_000
 
+  @doc "The most items of one kind a probe keeps. A list this long was cut short."
+  def max_items, do: @max_items
+
   # A resource is named by uri, a tool and a prompt by name.
   defp names(items) do
     items

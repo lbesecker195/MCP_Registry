@@ -283,6 +283,53 @@ defmodule McpRegistry.ProbeTest do
       assert %{ok: 1} = Runner.run_batch(limit: 10)
     end
 
+    test "a probe that finds different tools leaves a changelog entry" do
+      server = remote_fixture(%{tools: ~w(old_tool kept_tool)})
+
+      server
+      |> Ecto.Changeset.change(
+        tools_source: "probed",
+        probe_status: "ok",
+        # Stale enough to be due again.
+        probed_at: ~U[2026-09-01 00:00:00.000000Z]
+      )
+      |> Repo.update!()
+
+      stub(fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        case Jason.decode!(body)["method"] do
+          "initialize" ->
+            json(conn, %{jsonrpc: "2.0", id: 1, result: %{}})
+
+          "tools/list" ->
+            json(conn, %{
+              jsonrpc: "2.0",
+              id: 2,
+              result: %{tools: [%{name: "kept_tool"}, %{name: "new_tool"}]}
+            })
+
+          _ ->
+            Plug.Conn.send_resp(conn, 202, "")
+        end
+      end)
+
+      assert %{ok: 1} = Runner.run_batch(limit: 10)
+
+      assert [change] = Repo.all(McpRegistry.Changes.Change)
+      assert change.kind == "tools"
+      assert change.added == ["new_tool"]
+      assert change.removed == ["old_tool"]
+    end
+
+    test "a failed probe records no change, whatever it did not see" do
+      remote_fixture(%{tools: ~w(a b)})
+      stub(fn conn -> Plug.Conn.send_resp(conn, 401, "") end)
+
+      assert %{unauthorized: 1} = Runner.run_batch(limit: 10)
+      assert Repo.all(McpRegistry.Changes.Change) == []
+    end
+
     test "packaged listings are never picked up by the runner" do
       server_fixture(%{tools: ["declared"]})
 

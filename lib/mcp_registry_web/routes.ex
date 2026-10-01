@@ -64,4 +64,12 @@ defmodule McpRegistryWeb.Routes do
 
   def capability_client_path(name, kind, item, client_id) when is_binary(client_id),
     do: capability_path(name, kind, item) <> "/" <> client_id
+
+  @doc "A listing's changelog, or one kind of change in it (`\"tools\"`, `\"server_json\"`)."
+  def changelog_path(server, kind \\ nil)
+  def changelog_path(%Server{name: name}, kind), do: changelog_path(name, kind)
+  def changelog_path(name, nil) when is_binary(name), do: server_path(name) <> "/changelog"
+
+  def changelog_path(name, kind) when is_binary(name),
+    do: changelog_path(name, nil) <> "/" <> McpRegistry.Changes.slug(kind)
 end

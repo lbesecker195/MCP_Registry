@@ -31,6 +31,7 @@ defmodule McpRegistryWeb.Router do
     live "/servers", ServerLive.Index, :index
     live "/submit", ServerLive.New, :new
     live "/book", BookLive, :show
+    live "/changelog", ChangelogLive, :index
     get "/llms.txt", LlmsController, :show
   end
 
@@ -40,6 +41,8 @@ defmodule McpRegistryWeb.Router do
     # Before the glob: `*name` would otherwise swallow /tools and everything
     # under it as though it were part of the listing's name.
     live "/servers/:namespace/:name/for/:agent", ServerLive.Agent, :show
+    live "/servers/:namespace/:name/changelog", ServerLive.Changelog, :index
+    live "/servers/:namespace/:name/changelog/:kind", ServerLive.Changelog, :kind
     live "/servers/:namespace/:name/tools", ServerLive.Tools, :index
     live "/servers/:namespace/:name/tools/:tool", ServerLive.Tools, :show
     live "/servers/:namespace/:name/tools/:tool/:client", ServerLive.Tools, :client

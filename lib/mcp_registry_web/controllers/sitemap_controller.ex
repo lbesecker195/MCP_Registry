@@ -12,6 +12,7 @@ defmodule McpRegistryWeb.SitemapController do
   use McpRegistryWeb, :controller
 
   alias McpRegistry.Discovery
+  alias McpRegistry.Changes
   alias McpRegistry.Registry
   alias McpRegistry.Registry.Clients
   alias McpRegistryWeb.Routes
@@ -30,6 +31,9 @@ defmodule McpRegistryWeb.SitemapController do
   # over 50,000 is rejected in silence. 40,000 leaves room for the estimate to
   # be generous without approaching the limit.
   @urls_per_capability_file 40_000
+  # A listing's changelog plus one page per kind of change -- at most seven
+  # URLs, so 5,000 listings stays under 35,000 whatever they hold.
+  @servers_per_changelog_file 5_000
 
   # `/live` is LiveView's transport, not content. Its long-poll fallback carries
   # a fresh CSRF token in the query string, so every fetch mints a URL that has
@@ -66,6 +70,7 @@ defmodule McpRegistryWeb.SitemapController do
         end ++
         capability_file_names(:prompts) ++
         capability_file_names(:resources) ++
+        changelog_file_names() ++
         Enum.map(1..agent_files(), &"agents-#{&1}.xml")
 
     [
@@ -75,6 +80,24 @@ defmodule McpRegistryWeb.SitemapController do
       "</sitemapindex>\n"
     ]
     |> send_xml(conn)
+  end
+
+  def show(conn, %{"file" => "changelogs-" <> file}) do
+    with {page, ".xml"} <- Integer.parse(file),
+         true <- within(page, changelog_files()) do
+      base = McpRegistryWeb.Endpoint.url()
+
+      ((page - 1) * @servers_per_changelog_file)
+      |> Changes.servers_with_changes(@servers_per_changelog_file)
+      |> Enum.flat_map(fn {name, kinds, latest} ->
+        [{base <> Routes.changelog_path(name), latest}] ++
+          Enum.map(kinds, &{base <> Routes.changelog_path(name, &1), latest})
+      end)
+      |> urlset()
+      |> send_xml(conn)
+    else
+      _ -> not_found(conn)
+    end
   end
 
   def show(conn, %{"file" => "pages.xml"}) do
@@ -191,6 +214,16 @@ defmodule McpRegistryWeb.SitemapController do
       |> send_xml(conn)
     else
       _ -> not_found(conn)
+    end
+  end
+
+  defp changelog_files,
+    do: ceil(Changes.count_servers_with_changes() / @servers_per_changelog_file)
+
+  defp changelog_file_names do
+    case changelog_files() do
+      0 -> []
+      n -> Enum.map(1..n, &"changelogs-#{&1}.xml")
     end
   end
 

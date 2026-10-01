@@ -31,6 +31,7 @@ defmodule McpRegistry.OfficialRegistry do
   require Logger
 
   alias McpRegistry.Analytics
+  alias McpRegistry.Changes
   alias McpRegistry.Discovery
   alias McpRegistry.OfficialRegistry.SyncRun
   alias McpRegistry.Registry.{Manifest, Server}
@@ -364,7 +365,7 @@ defmodule McpRegistry.OfficialRegistry do
       if reapply? and not is_nil(existing) and only_bookkeeping?(changeset) do
         :unchanged
       else
-        write(existing, changeset)
+        write(existing, changeset, reapply?)
       end
     end
   end
@@ -376,12 +377,22 @@ defmodule McpRegistry.OfficialRegistry do
     changeset.changes |> Map.drop([:synced_at, :source_updated_at]) |> map_size() == 0
   end
 
-  defp write(existing, changeset) do
+  defp write(existing, changeset, reapply?) do
     case {existing, Repo.insert_or_update(changeset)} do
-      {_, {:error, _changeset}} -> :invalid
-      {nil, {:ok, _}} -> :inserted
-      {%Server{origin: "local"}, {:ok, _}} -> :replaced_pending
-      {_, {:ok, _}} -> :updated
+      {_, {:error, _changeset}} ->
+        :invalid
+
+      {nil, {:ok, _}} ->
+        :inserted
+
+      {%Server{origin: "local"}, {:ok, _}} ->
+        :replaced_pending
+
+      {_, {:ok, _}} ->
+        # A re-apply run changes how we read upstream, not what the publisher
+        # published, so it leaves the changelog alone.
+        unless reapply?, do: Changes.record_sync(existing, changeset)
+        :updated
     end
   end
 

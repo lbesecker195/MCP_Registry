@@ -32,7 +32,7 @@ defmodule McpRegistry.Discovery do
   @batch_size 10_000
 
   # Pages that are not listings, for the backfill.
-  @static_paths ["/", "/servers", "/submit", "/book"]
+  @static_paths ["/", "/servers", "/submit", "/book", "/changelog"]
 
   def config, do: Application.get_env(:mcp_registry, :discovery, [])
 
