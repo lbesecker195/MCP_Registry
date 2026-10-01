@@ -80,6 +80,55 @@ defmodule McpRegistryWeb.ServerLiveTest do
                ~s(and Cursor Context7 using MCP so I can use them in Claude Code and Grok Bot.")
   end
 
+  describe "logos" do
+    test "a verified GitHub namespace shows its owner's avatar", %{conn: conn} do
+      server =
+        server_fixture(%{name: "io.github.troyhunt/hibp-#{System.unique_integer([:positive])}"})
+
+      {:ok, _view, html} = live(conn, "/servers/#{server.name}")
+
+      assert html =~ "https://avatars.githubusercontent.com/troyhunt?size=96"
+      # It removes itself if it fails, so the monogram beneath shows instead.
+      assert html =~ ~s(onerror="this.remove\(\)")
+      assert html =~ ~s(referrerpolicy="no-referrer")
+      assert html =~ "monogram"
+    end
+
+    test "a declared icon wins, drawn padded on a light tile", %{conn: conn} do
+      server =
+        server_fixture(%{
+          name: "io.github.acme/iconic-#{System.unique_integer([:positive])}",
+          icon_url: "https://acme.test/logo.svg"
+        })
+
+      {:ok, _view, html} = live(conn, "/servers/#{server.name}")
+
+      assert html =~ "https://acme.test/logo.svg"
+      refute html =~ "avatars.githubusercontent.com"
+      assert html =~ "object-contain"
+    end
+
+    test "with nothing on record, only the monogram is drawn", %{conn: conn} do
+      server =
+        server_fixture(%{
+          name: "com.acme/plain-#{System.unique_integer([:positive])}",
+          repository_url: "https://gitlab.com/acme/plain"
+        })
+
+      {:ok, _view, html} = live(conn, "/servers/#{server.name}")
+
+      refute html =~ ~s(onerror="this.remove\(\)")
+      assert html =~ "monogram"
+    end
+
+    test "the listing grid shows logos too", %{conn: conn} do
+      server_fixture(%{name: "io.github.gridowner/x-#{System.unique_integer([:positive])}"})
+      {:ok, _view, html} = live(conn, ~p"/servers")
+
+      assert html =~ "avatars.githubusercontent.com/gridowner"
+    end
+  end
+
   test "pending listings are kept out of search engines", %{conn: conn} do
     active = server_fixture()
     pending = server_fixture(%{status: "pending"})

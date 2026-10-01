@@ -30,6 +30,7 @@ defmodule McpRegistry.Registry.Server do
     field :package_identifier, :string
     field :repository_url, :string
     field :website_url, :string
+    field :icon_url, :string
     field :license, :string
     field :env_vars, {:array, :string}, default: []
     field :tags, {:array, :string}, default: []
@@ -116,6 +117,7 @@ defmodule McpRegistry.Registry.Server do
       :package_identifier,
       :repository_url,
       :website_url,
+      :icon_url,
       :license,
       :article_content,
       :article_generated_at | @list_fields
@@ -138,6 +140,7 @@ defmodule McpRegistry.Registry.Server do
     |> validate_length(:remote_url, max: 4096)
     |> validate_length(:repository_url, max: 4096)
     |> validate_length(:website_url, max: 4096)
+    |> validate_icon_url()
     |> validate_length(:package_identifier, max: 1024)
     |> validate_distribution()
     |> validate_length(:tags, max: 12)
@@ -194,6 +197,21 @@ defmodule McpRegistry.Registry.Server do
       %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and host not in [nil, ""],
       uri
     )
+  end
+
+  # Stricter than the other URLs on purpose: an icon is fetched by every
+  # visitor's browser from a page served over https, so a plain-http source is
+  # blocked as mixed content, and a placeholder like {HOST} can never resolve.
+  # `McpRegistry.Registry.Manifest` applies the same rule before import, so an
+  # unusable icon is dropped there rather than invalidating the whole listing.
+  defp validate_icon_url(changeset) do
+    changeset
+    |> validate_length(:icon_url, max: 2048)
+    |> validate_change(:icon_url, fn :icon_url, value ->
+      if McpRegistry.Registry.Logo.usable_src?(value),
+        do: [],
+        else: [icon_url: "must be an https URL"]
+    end)
   end
 
   # A remote transport needs an endpoint; a stdio server needs a package; and a

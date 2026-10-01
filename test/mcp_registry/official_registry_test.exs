@@ -276,6 +276,55 @@ defmodule McpRegistry.OfficialRegistryTest do
     assert %SyncRun{status: "error", error: "interrupted"} = Repo.get!(SyncRun, stale.id)
   end
 
+  test "a declared icon is imported, and an unusable one never costs the listing" do
+    serve([
+      [
+        entry("io.github.acme/iconic", %{
+          "icons" => [
+            %{"src" => "https://acme.test/logo-512.png", "sizes" => ["512x512"]},
+            %{"src" => "https://acme.test/logo-128.png", "sizes" => ["128x128"]}
+          ]
+        }),
+        entry("io.github.acme/plain-http", %{"icons" => [%{"src" => "http://acme.test/logo.png"}]})
+      ]
+    ])
+
+    assert {:ok, _} = OfficialRegistry.sync(mode: :full)
+
+    # The smallest raster that is still sharp at double density wins.
+    assert Registry.get_server!("io.github.acme/iconic").icon_url ==
+             "https://acme.test/logo-128.png"
+
+    # http would be blocked as mixed content, so it is dropped -- and the
+    # listing still imports rather than failing validation over its icon.
+    assert Registry.get_server!("io.github.acme/plain-http").icon_url == nil
+  end
+
+  test "re-apply reaches listings whose upstream did not change, and stays quiet" do
+    # Imported before the mapping knew about icons: same updatedAt both times.
+    serve([[entry("io.github.acme/before-icons")]])
+    assert {:ok, _} = OfficialRegistry.sync(mode: :full)
+
+    serve([
+      [
+        entry("io.github.acme/before-icons", %{"icons" => [%{"src" => "https://acme.test/i.svg"}]})
+      ]
+    ])
+
+    # A normal run skips it: upstream's updatedAt has not moved.
+    assert {:ok, %{unchanged: 1}} = OfficialRegistry.sync(mode: :full)
+    assert Registry.get_server!("io.github.acme/before-icons").icon_url == nil
+
+    # Re-apply pushes it through the mapping again.
+    assert {:ok, %{updated: 1}} = OfficialRegistry.sync(reapply: true)
+
+    assert Registry.get_server!("io.github.acme/before-icons").icon_url ==
+             "https://acme.test/i.svg"
+
+    # Nothing left to change: a second re-apply writes nothing.
+    assert {:ok, %{updated: 0, unchanged: 1}} = OfficialRegistry.sync(reapply: true)
+  end
+
   test "server_url points at the official API entry" do
     assert OfficialRegistry.server_url("io.github.acme/weather") ==
              "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.acme%2Fweather/versions/latest"

@@ -154,7 +154,7 @@ defmodule McpRegistryWeb.ServerLive.Show do
       <section class="rise flex flex-col gap-6 border-b border-rule pb-8 md:flex-row md:items-start md:justify-between">
         <div class="min-w-0 space-y-3">
           <div class="flex items-start gap-3.5">
-            <.monogram name={@server.name} size="size-12 text-lg" />
+            <.server_logo server={@server} size="size-12 text-lg" />
 
             <%!-- The version sits beside the <h1>, not inside it: the heading
                   is the page's SEO title and stays exactly that string. --%>

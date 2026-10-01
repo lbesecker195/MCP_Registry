@@ -223,7 +223,7 @@ defmodule McpRegistryWeb.ServerLive.Index do
               navigate={server_path(server)}
               class="group/row -mx-3 flex gap-3.5 px-3 py-4 transition-colors hover:bg-surface focus-visible:bg-surface"
             >
-              <.monogram name={server.name} size="size-9 text-xs" class="mt-0.5" />
+              <.server_logo server={server} size="size-9 text-xs" class="mt-0.5" />
 
               <div class="min-w-0 flex-1">
                 <div class="flex items-start justify-between gap-3">
