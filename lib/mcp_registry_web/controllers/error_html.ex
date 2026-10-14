@@ -133,6 +133,7 @@ defmodule McpRegistryWeb.ErrorHTML do
             document.documentElement.setAttribute("data-theme", stored || system);
           })();
         </script>
+        <Layouts.google_tag />
       </head>
       <body>
         <main class="grid min-h-screen place-items-center px-4 py-16 sm:px-6">
