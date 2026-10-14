@@ -486,6 +486,27 @@ defmodule McpRegistryWeb.Layouts do
   end
 
   @doc """
+  The Google Analytics tag (gtag.js).
+
+  Rendered in both `<head>`s the site has: `root.html.heex` and the standalone
+  error page in `McpRegistryWeb.ErrorHTML`, so 404s are counted too. Keep the
+  measurement ID here and nowhere else.
+  """
+  def google_tag(assigns) do
+    ~H"""
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JL6M1013R2">
+    </script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-JL6M1013R2');
+    </script>
+    """
+  end
+
+  @doc """
   Shows the flash group with standard titles and content.
 
   ## Examples
